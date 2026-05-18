@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { apiClient } from '../api/client'
 
 const FRAME_WIDTH = 640
 const FRAME_HEIGHT = 480
@@ -365,7 +366,7 @@ export function BenchConfigView({ benchConfig, isCommandPending, onSave }) {
 
         <div className="zone-list">
           {selectedBench.zones.map((zone, index) => (
-            <div className={`zone-row ${selectedZoneIndex === index ? 'is-selected' : ''}`} key={`${zone.name}-${index}`}>
+            <div className={`zone-row ${selectedZoneIndex === index ? 'is-selected' : ''}`} key={`zone-row-${index}`}>
               <button type="button" className="zone-select" onClick={() => setSelectedZoneIndex(index)}>
                 {index + 1}
               </button>
@@ -404,11 +405,17 @@ export function BenchConfigView({ benchConfig, isCommandPending, onSave }) {
           onPointerUp={finishDrag}
           onPointerCancel={finishDrag}
         >
+          <img
+            className="bench-preview-camera"
+            src={apiClient.cameraStreamUrl()}
+            alt=""
+            draggable="false"
+          />
           {selectedBench.zones.map((zone, index) => (
             <button
               type="button"
               className={`bench-zone ${selectedZoneIndex === index ? 'is-selected' : ''}`}
-              key={`${zone.name}-preview-${index}`}
+              key={`zone-preview-${index}`}
               style={boxStyle(zone)}
               onPointerDown={(event) => startMoving(event, index)}
             >
