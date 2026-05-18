@@ -3,6 +3,7 @@ import { apiClient } from '../api/client'
 
 const FRAME_WIDTH = 640
 const FRAME_HEIGHT = 480
+const SNAPSHOT_STORAGE_KEY = 'vision-tms-bench-preview-snapshot'
 
 export function BenchConfigView({ benchConfig, isCommandPending, onSave }) {
   const initialConfig = normalizeBenchCollection(benchConfig)
@@ -10,6 +11,9 @@ export function BenchConfigView({ benchConfig, isCommandPending, onSave }) {
   const [selectedBenchId, setSelectedBenchId] = useState(initialConfig.active_bench_id)
   const [selectedZoneIndex, setSelectedZoneIndex] = useState(0)
   const [sequenceZone, setSequenceZone] = useState(initialConfig.benches[0]?.zones[0]?.name ?? '')
+  const [snapshotImage, setSnapshotImage] = useState(loadStoredSnapshot)
+  const [snapshotError, setSnapshotError] = useState('')
+  const [isSnapshotPending, setIsSnapshotPending] = useState(false)
   const [saved, setSaved] = useState(false)
   const [dragState, setDragState] = useState(null)
 
@@ -89,22 +93,7 @@ export function BenchConfigView({ benchConfig, isCommandPending, onSave }) {
     }))
   }
 
-  const addZone = () => {
-    const zone = createZoneModel(selectedBench.zones.length + 1, {
-      x: 24,
-      y: 24,
-      width: 120,
-      height: 90,
-    })
-    updateSelectedBench((bench) => ({
-      ...bench,
-      zones: [...bench.zones, zone],
-      start_zone: bench.start_zone ?? zone.name,
-      end_zone: bench.end_zone ?? zone.name,
-    }))
-    setSequenceZone(zone.name)
-    setSelectedZoneIndex(selectedBench.zones.length)
-  }
+
 
   const createZone = (box) => {
     const zone = createZoneModel(selectedBench.zones.length + 1, clampBox(box))
@@ -195,13 +184,16 @@ export function BenchConfigView({ benchConfig, isCommandPending, onSave }) {
     }
   }
 
+  const MIN_CREATE_DISTANCE = 6
+
   const startDrawing = (event) => {
     if (event.target !== event.currentTarget) {
       return
     }
     const point = eventToFramePoint(event)
     setDragState({
-      mode: 'create',
+      // start in a pending state so a simple click doesn't create a zone
+      mode: 'pending-create',
       startX: point.x,
       startY: point.y,
       currentX: point.x,
@@ -222,7 +214,14 @@ export function BenchConfigView({ benchConfig, isCommandPending, onSave }) {
       startY: point.y,
       original: { x: zone.x, y: zone.y, width: zone.width, height: zone.height },
     })
-    event.currentTarget.setPointerCapture(event.pointerId)
+    // ensure pointer capture is on the preview container so pointermove events
+    // are delivered to the container update handler
+    const container = event.currentTarget.closest?.('.bench-preview') || event.currentTarget
+    try {
+      container.setPointerCapture(event.pointerId)
+    } catch (e) {
+      // ignore if pointer capture isn't available
+    }
   }
 
   const startResizing = (event, index) => {
@@ -237,7 +236,12 @@ export function BenchConfigView({ benchConfig, isCommandPending, onSave }) {
       startY: point.y,
       original: { x: zone.x, y: zone.y, width: zone.width, height: zone.height },
     })
-    event.currentTarget.setPointerCapture(event.pointerId)
+    const container = event.currentTarget.closest?.('.bench-preview') || event.currentTarget
+    try {
+      container.setPointerCapture(event.pointerId)
+    } catch (e) {
+      // ignore if pointer capture isn't available
+    }
   }
 
   const updateDrag = (event) => {
@@ -246,6 +250,16 @@ export function BenchConfigView({ benchConfig, isCommandPending, onSave }) {
     }
 
     const point = eventToFramePoint(event)
+
+    if (dragState.mode === 'pending-create') {
+      const dx = point.x - dragState.startX
+      const dy = point.y - dragState.startY
+      if (Math.hypot(dx, dy) >= MIN_CREATE_DISTANCE) {
+        // convert to an active create operation once the pointer has moved
+        setDragState((current) => ({ ...current, mode: 'create', currentX: point.x, currentY: point.y }))
+      }
+      return
+    }
 
     if (dragState.mode === 'create') {
       setDragState((current) => ({
@@ -298,6 +312,22 @@ export function BenchConfigView({ benchConfig, isCommandPending, onSave }) {
     setDragState(null)
     if (event.currentTarget.hasPointerCapture(event.pointerId)) {
       event.currentTarget.releasePointerCapture(event.pointerId)
+    }
+  }
+
+  const captureSnapshot = async () => {
+    setIsSnapshotPending(true)
+    setSnapshotError('')
+
+    try {
+      const blob = await apiClient.getCameraSnapshot()
+      const dataUrl = await blobToDataUrl(blob)
+      storeSnapshot(dataUrl)
+      setSnapshotImage(dataUrl)
+    } catch (error) {
+      setSnapshotError(error.message)
+    } finally {
+      setIsSnapshotPending(false)
     }
   }
 
@@ -359,9 +389,7 @@ export function BenchConfigView({ benchConfig, isCommandPending, onSave }) {
             <p className="eyebrow">Bench layout</p>
             <h2>Zones</h2>
           </div>
-          <button type="button" className="secondary-button" onClick={addZone}>
-            Add Zone
-          </button>
+          {/* Add Zone button removed — use drag-to-create instead */}
         </div>
 
         <div className="zone-list">
@@ -396,8 +424,19 @@ export function BenchConfigView({ benchConfig, isCommandPending, onSave }) {
             <p className="eyebrow">Preview</p>
             <h2>{selectedZone?.name ?? 'Draw a zone'}</h2>
           </div>
-          <span className="result-pill">{selectedBench.zones.length} ZONES</span>
+          <div className="panel-heading-actions">
+            <button
+              type="button"
+              className="secondary-button"
+              disabled={isSnapshotPending}
+              onClick={captureSnapshot}
+            >
+              {isSnapshotPending ? 'Capturing' : 'Take Photo'}
+            </button>
+            <span className="result-pill">{selectedBench.zones.length} ZONES</span>
+          </div>
         </div>
+        {snapshotError && <p className="inline-error">{snapshotError}</p>}
         <div
           className="bench-preview"
           onPointerDown={startDrawing}
@@ -405,12 +444,16 @@ export function BenchConfigView({ benchConfig, isCommandPending, onSave }) {
           onPointerUp={finishDrag}
           onPointerCancel={finishDrag}
         >
-          <img
-            className="bench-preview-camera"
-            src={apiClient.cameraStreamUrl()}
-            alt=""
-            draggable="false"
-          />
+          {snapshotImage ? (
+            <img
+              className="bench-preview-camera"
+              src={snapshotImage}
+              alt=""
+              draggable="false"
+            />
+          ) : (
+            <div className="bench-preview-empty">No photo</div>
+          )}
           {selectedBench.zones.map((zone, index) => (
             <button
               type="button"
@@ -504,6 +547,37 @@ export function BenchConfigView({ benchConfig, isCommandPending, onSave }) {
       </section>
     </section>
   )
+}
+
+function loadStoredSnapshot() {
+  try {
+    return window.localStorage.getItem(SNAPSHOT_STORAGE_KEY) ?? ''
+  } catch {
+    return ''
+  }
+}
+
+function storeSnapshot(dataUrl) {
+  try {
+    window.localStorage.setItem(SNAPSHOT_STORAGE_KEY, dataUrl)
+  } catch {
+    // The preview still works even if the browser refuses local persistence.
+  }
+}
+
+function blobToDataUrl(blob) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onloadend = () => {
+      if (typeof reader.result === 'string') {
+        resolve(reader.result)
+        return
+      }
+      reject(new Error('Camera snapshot could not be loaded.'))
+    }
+    reader.onerror = () => reject(new Error('Camera snapshot could not be loaded.'))
+    reader.readAsDataURL(blob)
+  })
 }
 
 function normalizeBenchCollection(collection) {
