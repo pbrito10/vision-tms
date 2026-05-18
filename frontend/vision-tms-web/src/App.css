@@ -198,6 +198,14 @@
   line-height: 1.15;
 }
 
+.panel-heading-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
 .program-preview-panel {
   grid-column: 2;
   grid-row: 1;
@@ -332,6 +340,17 @@ button:disabled:hover {
   border-radius: 8px;
   color: #78251f;
   background: #fff0ee;
+  font-weight: 700;
+}
+
+.inline-error {
+  margin: -6px 0 12px;
+  padding: 10px 12px;
+  border: 1px solid #e3a29b;
+  border-radius: 8px;
+  color: #78251f;
+  background: #fff0ee;
+  font-size: 13px;
   font-weight: 700;
 }
 
@@ -637,6 +656,19 @@ button:disabled:hover {
   width: 100%;
   height: 100%;
   object-fit: fill;
+  pointer-events: none;
+  user-select: none;
+}
+
+.bench-preview-empty {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  display: grid;
+  place-items: center;
+  color: rgba(236, 255, 249, 0.68);
+  font-size: 13px;
+  font-weight: 800;
   pointer-events: none;
   user-select: none;
 }

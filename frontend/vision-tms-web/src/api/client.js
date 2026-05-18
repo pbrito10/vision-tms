@@ -21,6 +21,17 @@ async function request(path, options = {}) {
   return response.json()
 }
 
+async function requestBlob(path, options = {}) {
+  const response = await fetch(`${API_BASE_URL}${path}`, options)
+
+  if (!response.ok) {
+    const message = await errorMessage(response)
+    throw new Error(message)
+  }
+
+  return response.blob()
+}
+
 async function errorMessage(response) {
   try {
     const body = await response.json()
@@ -45,6 +56,7 @@ export const apiClient = {
   startCameraTest: () => request('/api/camera-test/start', { method: 'POST' }),
   stopCameraTest: () => request('/api/camera-test/stop', { method: 'POST' }),
   cameraStreamUrl: () => `${API_BASE_URL}/api/camera/stream`,
+  getCameraSnapshot: () => requestBlob('/api/camera/snapshot'),
   eventsUrl: () => `${API_BASE_URL}/api/events`,
   programStreamUrl: () => `${API_BASE_URL}/api/program/stream`,
   updateBenchConfig: (benchConfig) =>

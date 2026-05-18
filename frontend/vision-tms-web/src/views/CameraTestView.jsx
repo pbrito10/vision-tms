@@ -52,7 +52,7 @@ export function CameraTestView({
 }
 
 function CameraStreamImage() {
-  const [streamRevision, setStreamRevision] = useState(0)
+  const [streamRevision, setStreamRevision] = useState(Math.random())
   const reconnectTimeoutRef = useRef(null)
 
   const reconnect = useCallback(() => {
@@ -62,7 +62,7 @@ function CameraStreamImage() {
 
     reconnectTimeoutRef.current = window.setTimeout(() => {
       reconnectTimeoutRef.current = null
-      setStreamRevision((current) => current + 1)
+      setStreamRevision(Math.random())
     }, 1000)
   }, [])
 

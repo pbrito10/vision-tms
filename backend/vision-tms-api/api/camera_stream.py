@@ -46,7 +46,39 @@ class CameraStreamService:
             self._condition.notify_all()
 
         if producer_thread is not None and producer_thread.is_alive():
+            logger.debug(f"Waiting for producer thread to stop (timeout={timeout}s)")
             producer_thread.join(timeout=timeout)
+            if producer_thread.is_alive():
+                logger.warning("Producer thread did not stop in time")
+
+    def reset(self) -> None:
+        """Reset the stream service to a clean state."""
+        logger.debug("Resetting camera stream service")
+        
+        # Step 1: Stop the producer thread and wait for it to die
+        with self._condition:
+            producer_thread = self._producer_thread
+            self._client_count = 0
+            self._stop_event.set()
+            self._condition.notify_all()
+        
+        if producer_thread is not None:
+            logger.debug(f"Waiting for producer thread to die (alive={producer_thread.is_alive()})")
+            producer_thread.join(timeout=3.0)
+            if producer_thread.is_alive():
+                logger.warning("Producer thread still alive after timeout")
+        
+        # Step 2: Now safely reset everything
+        with self._condition:
+            self._producer_thread = None
+            self._latest_jpeg = None
+            self._frame_version = 0
+            self._client_count = 0
+            self._last_live_frame_at = 0.0
+            self._stop_event.clear()
+            self._condition.notify_all()
+        
+        logger.debug("Camera stream service reset complete")
 
     def _register_client(self) -> None:
         with self._condition:
@@ -270,3 +302,42 @@ class CameraStreamService:
             + jpeg
             + b"\r\n"
         )
+
+
+class CameraSnapshotService:
+    """Captures a single camera frame without keeping the device open."""
+
+    def __init__(self, config_repository: ConfigRepository) -> None:
+        self._config_repository = config_repository
+
+    def capture(self) -> bytes:
+        import cv2
+
+        from src.video.camera import Camera
+
+        config = self._config_repository.load()
+        camera = Camera.from_config(config["camera"])
+
+        try:
+            if not camera.is_open():
+                raise RuntimeError("Camera unavailable.")
+
+            frame = self._read_frame(camera)
+            if frame is None:
+                raise RuntimeError("Camera frame unavailable.")
+
+            ok, encoded = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, 90])
+            if not ok:
+                raise RuntimeError("Camera snapshot encoding failed.")
+
+            return encoded.tobytes()
+        finally:
+            camera.release()
+
+    def _read_frame(self, camera: object) -> object | None:
+        frame = None
+        for _ in range(3):
+            frame = camera.read_frame()
+            if frame is not None:
+                return frame
+        return frame
