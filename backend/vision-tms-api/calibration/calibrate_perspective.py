@@ -17,6 +17,7 @@ Uso posterior no pipeline:
 """
 from __future__ import annotations
 
+import logging
 import os
 import sys
 from pathlib import Path
@@ -24,6 +25,14 @@ from pathlib import Path
 import cv2
 import numpy as np
 import yaml
+
+_PROJECT_ROOT = Path(__file__).resolve().parents[1]
+if str(_PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(_PROJECT_ROOT))
+
+from src.shared.logging_config import configure_logging
+
+logger = logging.getLogger(__name__)
 
 # Quando em SSH, força o display físico da máquina remota
 if os.environ.get("SSH_CLIENT") or os.environ.get("SSH_TTY") or not os.environ.get("DISPLAY"):
@@ -122,8 +131,8 @@ class PerspectiveResult:
         """Grava a matriz e o tamanho de saída em .npz. Cria pastas se necessário."""
         path.parent.mkdir(parents=True, exist_ok=True)
         np.savez(str(path), M=self.matrix, output_size=np.array(self.output_size))
-        print(f"\nPerspetiva guardada em: {path}")
-        print(f"Tamanho de saída: {self.output_size[0]}x{self.output_size[1]} px")
+        logger.info("Perspetiva guardada em: %s", path)
+        logger.info("Tamanho de saida: %sx%s px", self.output_size[0], self.output_size[1])
 
 
 def _draw_hud(frame: np.ndarray, calibrator: PerspectiveCalibrator) -> None:
@@ -164,6 +173,7 @@ def _on_mouse_click(event: int, x: int, y: int, _flags: int, _param) -> None:
 
 def main() -> None:
     global _src_points
+    configure_logging()
 
     with open(_SETTINGS_PATH) as f:
         _settings = yaml.safe_load(f)
@@ -171,7 +181,7 @@ def main() -> None:
 
     cap = cv2.VideoCapture(CAMERA_INDEX)
     if not cap.isOpened():
-        print(f"Erro: não foi possível abrir a câmara {CAMERA_INDEX}.")
+        logger.error("Nao foi possivel abrir a camara %s.", CAMERA_INDEX)
         sys.exit(1)
 
     output_size = (OUTPUT_WIDTH_PX, _compute_output_height())
@@ -184,18 +194,18 @@ def main() -> None:
 
     cv2.namedWindow(window_main, cv2.WINDOW_NORMAL)
 
-    print("=== Calibração de Perspetiva ===")
-    print(f"Retângulo de referência: {REFERENCE_WIDTH_MM} mm × {REFERENCE_HEIGHT_MM} mm")
-    print(f"Imagem de saída: {output_size[0]}×{output_size[1]} px\n")
-    print("Clica nos 4 cantos do retângulo de referência na bancada:")
-    print("  1. Superior-Esquerdo  →  2. Superior-Direito")
-    print("  4. Inferior-Esquerdo  ←  3. Inferior-Direito")
-    print("\nENTER: confirmar e guardar | R: repetir seleção | ESC: sair\n")
+    logger.info("=== Calibracao de Perspetiva ===")
+    logger.info("Retangulo de referencia: %s mm x %s mm", REFERENCE_WIDTH_MM, REFERENCE_HEIGHT_MM)
+    logger.info("Imagem de saida: %sx%s px", output_size[0], output_size[1])
+    logger.info("Clica nos 4 cantos do retangulo de referencia na bancada:")
+    logger.info("1. Superior-Esquerdo -> 2. Superior-Direito")
+    logger.info("4. Inferior-Esquerdo <- 3. Inferior-Direito")
+    logger.info("ENTER: confirmar e guardar | R: repetir selecao | ESC: sair")
 
     while True:
         ok, frame = cap.read()
         if not ok:
-            print("Erro a ler frame da câmara.")
+            logger.error("Erro a ler frame da camara.")
             break
 
         # Aplica o mesmo flip do pipeline (lido de settings.yaml) para consistência
@@ -224,7 +234,7 @@ def main() -> None:
         key = cv2.waitKey(1) & 0xFF
 
         if key == 27:  # ESC — sair sem guardar
-            print("Saiu sem guardar.")
+            logger.info("Saiu sem guardar.")
             break
 
         if key in (ord('r'), ord('R')):
@@ -232,11 +242,11 @@ def main() -> None:
             _src_points.clear()
             current_result = None
             cv2.destroyWindow(window_preview)
-            print("Pontos limpos. Seleciona novamente.")
+            logger.info("Pontos limpos. Seleciona novamente.")
 
         if key == 13 and current_result is not None:  # ENTER — confirmar e guardar
             current_result.save(OUTPUT_PATH)
-            print("Calibração de perspetiva concluída! Pressiona ESC para sair.")
+            logger.info("Calibracao de perspetiva concluida. Pressiona ESC para sair.")
 
     cap.release()
     cv2.destroyAllWindows()

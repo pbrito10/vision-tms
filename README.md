@@ -104,6 +104,16 @@ npm --prefix frontend/vision-tms-web run build
 docker --context default compose config
 ```
 
+## Logging
+
+O backend usa `logging` em vez de `print()`. O nível pode ser alterado no `docker-compose.yml` através de:
+
+```yaml
+VISION_TMS_LOG_LEVEL: INFO
+```
+
+Valores úteis: `DEBUG`, `INFO`, `WARNING`, `ERROR`.
+
 ## Notas
 
 - O backend deve correr com o contexto Docker `default`, para conseguir mapear a câmara.

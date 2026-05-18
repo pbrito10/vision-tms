@@ -11,6 +11,7 @@ services:
       INFLUXDB_TOKEN: vision-tms-dev-token
       PYTHONDONTWRITEBYTECODE: "1"
       PYTHONUNBUFFERED: "1"
+      VISION_TMS_LOG_LEVEL: INFO
     ports:
       - "8000:8000"
     volumes:

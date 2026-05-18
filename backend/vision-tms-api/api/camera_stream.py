@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+import logging
 import threading
 import time
 from collections.abc import Iterator
 from pathlib import Path
 
 from api.services import BASE_DIR, ConfigRepository
+
+logger = logging.getLogger(__name__)
 
 
 class CameraStreamService:
@@ -114,7 +117,7 @@ class CameraStreamService:
                 )
             except Exception as exc:
                 detector_error = self._exception_message("Detector unavailable", exc)
-                print(detector_error, flush=True)
+                logger.exception(detector_error)
 
             while not self._stop_event.is_set():
                 if camera is None or not camera.is_open():
@@ -129,7 +132,7 @@ class CameraStreamService:
                     if read_failures == 1:
                         self._publish_error("Camera frame unavailable")
                     if read_failures >= 5:
-                        print("Camera stream lost frames; reopening camera.", flush=True)
+                        logger.warning("Camera stream lost frames; reopening camera.")
                         camera.release()
                         camera = None
                         read_failures = 0
@@ -144,7 +147,7 @@ class CameraStreamService:
                         frame_annotator.draw_detections(frame, detections)
                     except Exception as exc:
                         detector_error = self._exception_message("Detection failed", exc)
-                        print(detector_error, flush=True)
+                        logger.exception(detector_error)
                         detector.release()
                         detector = None
 

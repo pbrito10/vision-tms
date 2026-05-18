@@ -16,12 +16,21 @@ Uso posterior no pipeline:
 """
 from __future__ import annotations
 
+import logging
 import os
 import sys
 from pathlib import Path
 
 import cv2
 import numpy as np
+
+_PROJECT_ROOT = Path(__file__).resolve().parents[1]
+if str(_PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(_PROJECT_ROOT))
+
+from src.shared.logging_config import configure_logging
+
+logger = logging.getLogger(__name__)
 
 # Garante que o DISPLAY está definido quando o script é corrido fora de uma sessão gráfica
 if not os.environ.get("DISPLAY"):
@@ -154,14 +163,14 @@ class CalibrationResult:
             newcameramtx=self.new_camera_matrix,
             roi=np.array(self.roi),
         )
-        print(f"\nCalibração guardada em: {path}")
-        print(f"Erro de reprojeção (RMS total): {self.rms:.4f} px")
-        print("\nErro por imagem:")
+        logger.info("Calibracao guardada em: %s", path)
+        logger.info("Erro de reprojecao (RMS total): %.4f px", self.rms)
+        logger.info("Erro por imagem:")
         for i, err in enumerate(self.per_image_errors):
-            print(f"  Imagem {i + 1:2d}: {err:.4f} px")
+            logger.info("Imagem %2d: %.4f px", i + 1, err)
         # Valores > 1 px indicam que as imagens capturadas podem ter má qualidade
         if self.rms > 1.0:
-            print("\nAVISO: RMS > 1 px — considera capturar mais imagens ou verificar o checkerboard.")
+            logger.warning("RMS > 1 px; considera capturar mais imagens ou verificar o checkerboard.")
 
 
 def _draw_hud(frame: np.ndarray, count: int, detected: bool) -> None:
@@ -178,9 +187,11 @@ def _draw_hud(frame: np.ndarray, count: int, detected: bool) -> None:
 
 
 def main() -> None:
+    configure_logging()
+
     cap = cv2.VideoCapture(CAMERA_INDEX)
     if not cap.isOpened():
-        print(f"Erro: não foi possível abrir a câmara {CAMERA_INDEX}.")
+        logger.error("Nao foi possivel abrir a camara %s.", CAMERA_INDEX)
         sys.exit(1)
 
     calibrator = LensCalibrator(CHECKERBOARD_SIZE, SQUARE_SIZE_MM)
@@ -188,16 +199,16 @@ def main() -> None:
     calibrated = False
     #Cria a janela explicitamente
     cv2.namedWindow("Calibração de Lente", cv2.WINDOW_NORMAL)
-    print("=== Calibração de Lente ===")
-    print(f"Checkerboard: {CHECKERBOARD_SIZE[0]}x{CHECKERBOARD_SIZE[1]} cantos internos")
-    print(f"Quadrado: {SQUARE_SIZE_MM} mm | Capturas necessárias: {MIN_CAPTURES}\n")
-    print("Mostra o tabuleiro à câmara em posições e ângulos variados.")
-    print("Pressiona SPACE quando o padrão estiver detetado (cantos verdes).\n")
+    logger.info("=== Calibracao de Lente ===")
+    logger.info("Checkerboard: %sx%s cantos internos", CHECKERBOARD_SIZE[0], CHECKERBOARD_SIZE[1])
+    logger.info("Quadrado: %s mm | Capturas necessarias: %s", SQUARE_SIZE_MM, MIN_CAPTURES)
+    logger.info("Mostra o tabuleiro a camara em posicoes e angulos variados.")
+    logger.info("Pressiona SPACE quando o padrao estiver detetado (cantos verdes).")
 
     while True:
         ok, frame = cap.read()
         if not ok:
-            print("Erro a ler frame da câmara.")
+            logger.error("Erro a ler frame da camara.")
             break
 
         if image_size is None:
@@ -211,20 +222,20 @@ def main() -> None:
         key = cv2.waitKey(1) & 0xFF
 
         if key == 27:  # ESC — sair
-            print("Saiu sem guardar.")
+            logger.info("Saiu sem guardar.")
             break
 
         if key == ord(' ') and found and corners is not None and not calibrated:
             count = calibrator.capture(corners)
-            print(f"Captura {count}/{MIN_CAPTURES} registada.")
+            logger.info("Captura %s/%s registada.", count, MIN_CAPTURES)
 
             # Calibração automática ao atingir o mínimo
             if count >= MIN_CAPTURES:
-                print("\nA calcular calibração...")
+                logger.info("A calcular calibracao.")
                 result = calibrator.calibrate(image_size)
                 result.save(OUTPUT_PATH)
                 calibrated = True
-                print("Pressiona ESC para sair.")
+                logger.info("Pressiona ESC para sair.")
 
     cap.release()
     cv2.destroyAllWindows()

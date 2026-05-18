@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import math
 import os
 import queue
@@ -13,6 +14,8 @@ from typing import Any
 from src.output.metrics_snapshot import MetricsSnapshot
 from src.tracking.cycle_result import CycleResult
 from src.tracking.task_event import TaskEvent
+
+logger = logging.getLogger(__name__)
 
 
 class NullInfluxWriter:
@@ -63,7 +66,10 @@ class InfluxWriter:
         missing = [key for key in required if not influx_config.get(key)]
         token = influx_config.get("token") or os.environ.get(influx_config.get("token_env", "INFLUXDB_TOKEN"), "")
         if missing or not token:
-            print(f"InfluxDB disabled: missing {', '.join(missing + ([] if token else ['token']))}.")
+            logger.warning(
+                "InfluxDB disabled: missing %s.",
+                ", ".join(missing + ([] if token else ["token"])),
+            )
             return NullInfluxWriter()
 
         return cls(config, session_start)
@@ -191,7 +197,7 @@ class InfluxWriter:
     def _log_error(self, message: str) -> None:
         now = time.monotonic()
         if now - self._last_error_log >= 10:
-            print(message)
+            logger.error(message)
             self._last_error_log = now
 
 
