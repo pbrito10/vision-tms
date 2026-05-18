@@ -9,18 +9,19 @@ services:
       - /dev/video0:/dev/video0
     environment:
       INFLUXDB_TOKEN: vision-tms-dev-token
+      PYTHONDONTWRITEBYTECODE: "1"
       PYTHONUNBUFFERED: "1"
     ports:
       - "8000:8000"
     volumes:
-      - ./backend/industrial-task-recognition:/app
+      - ./backend/vision-tms-api:/app
     depends_on:
       influxdb:
         condition: service_healthy
 
   frontend:
     build:
-      context: ./frontend/my-react-app
+      context: ./frontend/vision-tms-web
       dockerfile: Dockerfile
     container_name: vision-tms-frontend
     command: npm run dev -- --host 0.0.0.0
@@ -29,7 +30,7 @@ services:
     ports:
       - "5173:5173"
     volumes:
-      - ./frontend/my-react-app:/app
+      - ./frontend/vision-tms-web:/app
       - frontend-node-modules:/app/node_modules
     depends_on:
       - backend

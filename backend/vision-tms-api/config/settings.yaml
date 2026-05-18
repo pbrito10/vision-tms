@@ -1,0 +1,64 @@
+system:
+  line_name: Line A-07
+  program_name: Industrial Assembly
+  part_number: ITR-001
+  camera_serial: CAM-TMS-01-9482
+camera:
+  index: 0
+  width: 640
+  height: 480
+  flip: false
+  calibration_path: calibration/data/lens_calibration.npz
+  perspective_path: calibration/data/perspective_calibration.npz
+  open_timeout_seconds: 5
+  open_retry_interval_seconds: 0.2
+detection:
+  model_path: model/hand_landmarker.task
+  max_num_hands: 2
+  min_detection_confidence: 0.7
+  min_tracking_confidence: 0.7
+tracking:
+  dwell_time_seconds: 0.5
+  task_timeout_seconds: 30.0
+  stillness_threshold_px: 5.0
+  zones:
+  - Porca
+  - Chassi Inferior
+  - Rodas
+  - Chassi Superior
+  - Parafuso
+  - Montagem
+  - Saida
+  two_hands_zones:
+  - Montagem
+  cycle_zone_order:
+  - Porca
+  - Montagem
+  - Chassi Inferior
+  - Montagem
+  - Rodas
+  - Montagem
+  - Chassi Superior
+  - Montagem
+  - Parafuso
+  - Montagem
+  - Saida
+  start_zone: Porca
+  exit_zone: Saida
+dashboard:
+  frame_path: dashboard/data/program_frame.jpg
+  state_path: dashboard/data/program_state.json
+  refresh_seconds: 1
+influxdb:
+  enabled: true
+  url: http://influxdb:8086
+  org: vision-tms
+  bucket: vision_tms
+  token_env: INFLUXDB_TOKEN
+  measurement_prefix: vision_tms
+  batch_size: 50
+  flush_interval_seconds: 1
+  timeout_seconds: 1.5
+  queue_size: 1000
+output:
+  excel_output_dir: output/

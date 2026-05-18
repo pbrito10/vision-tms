@@ -1,0 +1,82 @@
+{
+  "active_bench_id": "default",
+  "benches": [
+    {
+      "id": "default",
+      "name": "Line A-07",
+      "zones": [
+        {
+          "name": "Porca",
+          "x": 15,
+          "y": 14,
+          "width": 107,
+          "height": 119,
+          "two_hands": false
+        },
+        {
+          "name": "Chassi Inferior",
+          "x": 155,
+          "y": 14,
+          "width": 129,
+          "height": 121,
+          "two_hands": false
+        },
+        {
+          "name": "Rodas",
+          "x": 310,
+          "y": 12,
+          "width": 118,
+          "height": 121,
+          "two_hands": false
+        },
+        {
+          "name": "Chassi Superior",
+          "x": 486,
+          "y": 13,
+          "width": 141,
+          "height": 141,
+          "two_hands": false
+        },
+        {
+          "name": "Parafuso",
+          "x": 512,
+          "y": 192,
+          "width": 119,
+          "height": 130,
+          "two_hands": false
+        },
+        {
+          "name": "Montagem",
+          "x": 46,
+          "y": 181,
+          "width": 356,
+          "height": 257,
+          "two_hands": true
+        },
+        {
+          "name": "Saida",
+          "x": 514,
+          "y": 349,
+          "width": 109,
+          "height": 135,
+          "two_hands": false
+        }
+      ],
+      "cycle_sequence": [
+        "Porca",
+        "Montagem",
+        "Chassi Inferior",
+        "Montagem",
+        "Rodas",
+        "Montagem",
+        "Chassi Superior",
+        "Montagem",
+        "Parafuso",
+        "Montagem",
+        "Saida"
+      ],
+      "start_zone": "Porca",
+      "end_zone": "Saida"
+    }
+  ]
+}
