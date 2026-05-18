@@ -1,0 +1,77 @@
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: vision-tms-backend
+    command: uvicorn api.main:app --host 0.0.0.0 --port 8000
+    devices:
+      - /dev/video0:/dev/video0
+    environment:
+      INFLUXDB_TOKEN: vision-tms-dev-token
+      PYTHONUNBUFFERED: "1"
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend/industrial-task-recognition:/app
+    depends_on:
+      influxdb:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: ./frontend/my-react-app
+      dockerfile: Dockerfile
+    container_name: vision-tms-frontend
+    command: npm run dev -- --host 0.0.0.0
+    environment:
+      VITE_API_URL: http://localhost:8000
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./frontend/my-react-app:/app
+      - frontend-node-modules:/app/node_modules
+    depends_on:
+      - backend
+
+  influxdb:
+    image: influxdb:2.7
+    container_name: vision-tms-influxdb
+    ports:
+      - "8086:8086"
+    environment:
+      DOCKER_INFLUXDB_INIT_MODE: setup
+      DOCKER_INFLUXDB_INIT_USERNAME: admin
+      DOCKER_INFLUXDB_INIT_PASSWORD: vision-tms-admin
+      DOCKER_INFLUXDB_INIT_ORG: vision-tms
+      DOCKER_INFLUXDB_INIT_BUCKET: vision_tms
+      DOCKER_INFLUXDB_INIT_ADMIN_TOKEN: vision-tms-dev-token
+    volumes:
+      - influxdb-data:/var/lib/influxdb2
+      - influxdb-config:/etc/influxdb2
+    healthcheck:
+      test: ["CMD", "influx", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: vision-tms-grafana
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: vision-tms-admin
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+    depends_on:
+      influxdb:
+        condition: service_healthy
+
+volumes:
+  frontend-node-modules:
+  influxdb-data:
+  influxdb-config:
+  grafana-data:

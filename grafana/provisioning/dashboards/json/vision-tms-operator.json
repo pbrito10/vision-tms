@@ -1,0 +1,446 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": {
+          "type": "grafana",
+          "uid": "-- Grafana --"
+        },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "datasource": {
+        "type": "influxdb",
+        "uid": "vision-tms-influxdb"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 1,
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 4,
+        "x": 0,
+        "y": 0
+      },
+      "id": 1,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "influxdb",
+            "uid": "vision-tms-influxdb"
+          },
+          "query": "latestSession = from(bucket: \"vision_tms\")\n  |> range(start: -30d)\n  |> filter(fn: (r) => r._measurement == \"vision_tms_session\" and r._field == \"session_duration_s\")\n  |> group()\n  |> sort(columns: [\"_time\"], desc: true)\n  |> limit(n: 1)\n  |> keep(columns: [\"session\"])\n  |> group(columns: [\"session\"])\n\nvalues = from(bucket: \"vision_tms\")\n  |> range(start: -30d)\n  |> filter(fn: (r) => r._measurement == \"vision_tms_session\" and r._field == \"session_duration_s\")\n  |> keep(columns: [\"session\", \"_time\", \"_value\"])\n  |> group(columns: [\"session\"])\n\njoin(tables: {values: values, latest: latestSession}, on: [\"session\"])\n  |> group()\n  |> sort(columns: [\"_time\"], desc: true)\n  |> limit(n: 1)\n  |> keep(columns: [\"_time\", \"_value\"])",
+          "refId": "A"
+        }
+      ],
+      "title": "Tempo de sessão",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "influxdb",
+        "uid": "vision-tms-influxdb"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 0,
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 4,
+        "x": 4,
+        "y": 0
+      },
+      "id": 2,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "influxdb",
+            "uid": "vision-tms-influxdb"
+          },
+          "query": "latestSession = from(bucket: \"vision_tms\")\n  |> range(start: -30d)\n  |> filter(fn: (r) => r._measurement == \"vision_tms_session\" and r._field == \"session_duration_s\")\n  |> group()\n  |> sort(columns: [\"_time\"], desc: true)\n  |> limit(n: 1)\n  |> keep(columns: [\"session\"])\n  |> group(columns: [\"session\"])\n\nvalues = from(bucket: \"vision_tms\")\n  |> range(start: -30d)\n  |> filter(fn: (r) => r._measurement == \"vision_tms_session\" and r._field == \"cycle_count\")\n  |> keep(columns: [\"session\", \"_time\", \"_value\"])\n  |> group(columns: [\"session\"])\n\njoin(tables: {values: values, latest: latestSession}, on: [\"session\"])\n  |> group()\n  |> sort(columns: [\"_time\"], desc: true)\n  |> limit(n: 1)\n  |> keep(columns: [\"_time\", \"_value\"])",
+          "refId": "A"
+        }
+      ],
+      "title": "Ciclos",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "influxdb",
+        "uid": "vision-tms-influxdb"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "decimals": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 4,
+        "x": 8,
+        "y": 0
+      },
+      "id": 3,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "influxdb",
+            "uid": "vision-tms-influxdb"
+          },
+          "query": "latestSession = from(bucket: \"vision_tms\")\n  |> range(start: -30d)\n  |> filter(fn: (r) => r._measurement == \"vision_tms_session\" and r._field == \"session_duration_s\")\n  |> group()\n  |> sort(columns: [\"_time\"], desc: true)\n  |> limit(n: 1)\n  |> keep(columns: [\"session\"])\n  |> group(columns: [\"session\"])\n\nvalues = from(bucket: \"vision_tms\")\n  |> range(start: -30d)\n  |> filter(fn: (r) => r._measurement == \"vision_tms_session\" and r._field == \"cycle_ok_count\")\n  |> keep(columns: [\"session\", \"_time\", \"_value\"])\n  |> group(columns: [\"session\"])\n\njoin(tables: {values: values, latest: latestSession}, on: [\"session\"])\n  |> group()\n  |> sort(columns: [\"_time\"], desc: true)\n  |> limit(n: 1)\n  |> keep(columns: [\"_time\", \"_value\"])",
+          "refId": "A"
+        }
+      ],
+      "title": "Ciclos OK",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "influxdb",
+        "uid": "vision-tms-influxdb"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "decimals": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 1
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 4,
+        "x": 12,
+        "y": 0
+      },
+      "id": 4,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "influxdb",
+            "uid": "vision-tms-influxdb"
+          },
+          "query": "latestSession = from(bucket: \"vision_tms\")\n  |> range(start: -30d)\n  |> filter(fn: (r) => r._measurement == \"vision_tms_session\" and r._field == \"session_duration_s\")\n  |> group()\n  |> sort(columns: [\"_time\"], desc: true)\n  |> limit(n: 1)\n  |> keep(columns: [\"session\"])\n  |> group(columns: [\"session\"])\n\nvalues = from(bucket: \"vision_tms\")\n  |> range(start: -30d)\n  |> filter(fn: (r) => r._measurement == \"vision_tms_session\" and r._field == \"cycle_review_count\")\n  |> keep(columns: [\"session\", \"_time\", \"_value\"])\n  |> group(columns: [\"session\"])\n\njoin(tables: {values: values, latest: latestSession}, on: [\"session\"])\n  |> group()\n  |> sort(columns: [\"_time\"], desc: true)\n  |> limit(n: 1)\n  |> keep(columns: [\"_time\", \"_value\"])",
+          "refId": "A"
+        }
+      ],
+      "title": "Ciclos a rever",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "influxdb",
+        "uid": "vision-tms-influxdb"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 1,
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 4,
+        "x": 16,
+        "y": 0
+      },
+      "id": 7,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "influxdb",
+            "uid": "vision-tms-influxdb"
+          },
+          "query": "latestSession = from(bucket: \"vision_tms\")\n  |> range(start: -30d)\n  |> filter(fn: (r) => r._measurement == \"vision_tms_session\" and r._field == \"session_duration_s\")\n  |> group()\n  |> sort(columns: [\"_time\"], desc: true)\n  |> limit(n: 1)\n  |> keep(columns: [\"session\"])\n  |> group(columns: [\"session\"])\n\nvalues = from(bucket: \"vision_tms\")\n  |> range(start: -30d)\n  |> filter(fn: (r) => r._measurement == \"vision_tms_session\" and r._field == \"cycle_avg_s\")\n  |> keep(columns: [\"session\", \"_time\", \"_value\"])\n  |> group(columns: [\"session\"])\n\njoin(tables: {values: values, latest: latestSession}, on: [\"session\"])\n  |> group()\n  |> sort(columns: [\"_time\"], desc: true)\n  |> limit(n: 1)\n  |> keep(columns: [\"_time\", \"_value\"])",
+          "refId": "A"
+        }
+      ],
+      "title": "Tempo médio ciclo",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "influxdb",
+        "uid": "vision-tms-influxdb"
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 4,
+        "x": 20,
+        "y": 0
+      },
+      "id": 8,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value",
+        "wideLayout": true
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "influxdb",
+            "uid": "vision-tms-influxdb"
+          },
+          "query": "latestSession = from(bucket: \"vision_tms\")\n  |> range(start: -30d)\n  |> filter(fn: (r) => r._measurement == \"vision_tms_session\" and r._field == \"session_duration_s\")\n  |> group()\n  |> sort(columns: [\"_time\"], desc: true)\n  |> limit(n: 1)\n  |> keep(columns: [\"session\"])\n  |> group(columns: [\"session\"])\n\nzones = from(bucket: \"vision_tms\")\n  |> range(start: -30d)\n  |> filter(fn: (r) => r._measurement == \"vision_tms_zone\" and r._field == \"avg_s\")\n  |> keep(columns: [\"session\", \"zone\", \"_time\", \"_value\"])\n  |> group(columns: [\"session\", \"zone\"])\n\njoin(tables: {zones: zones, latest: latestSession}, on: [\"session\"])\n  |> group(columns: [\"zone\"])\n  |> last()\n  |> group()\n  |> sort(columns: [\"_value\"], desc: true)\n  |> limit(n: 1)\n  |> map(fn: (r) => ({_time: r._time, _value: r.zone}))",
+          "refId": "A"
+        }
+      ],
+      "title": "Zona de gargalo",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "influxdb",
+        "uid": "vision-tms-influxdb"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 1,
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 16,
+        "x": 0,
+        "y": 5
+      },
+      "id": 5,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": false
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "influxdb",
+            "uid": "vision-tms-influxdb"
+          },
+          "query": "latestSession = from(bucket: \"vision_tms\")\n  |> range(start: -30d)\n  |> filter(fn: (r) => r._measurement == \"vision_tms_session\" and r._field == \"session_duration_s\")\n  |> group()\n  |> sort(columns: [\"_time\"], desc: true)\n  |> limit(n: 1)\n  |> keep(columns: [\"session\"])\n  |> group(columns: [\"session\"])\n\ncycles = from(bucket: \"vision_tms\")\n  |> range(start: -30d)\n  |> filter(fn: (r) => r._measurement == \"vision_tms_cycle\" and r._field == \"duration_s\")\n  |> keep(columns: [\"session\", \"_time\", \"_value\"])\n  |> group(columns: [\"session\"])\n\njoin(tables: {cycles: cycles, latest: latestSession}, on: [\"session\"])\n  |> group()\n  |> sort(columns: [\"_time\"], desc: true)\n  |> limit(n: 5)\n  |> sort(columns: [\"_time\"])\n  |> keep(columns: [\"_time\", \"_value\"])",
+          "refId": "A"
+        }
+      ],
+      "title": "Tendência do tempo dos últimos 5 ciclos",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "influxdb",
+        "uid": "vision-tms-influxdb"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 1,
+          "max": 100,
+          "min": 0,
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 8,
+        "x": 16,
+        "y": 5
+      },
+      "id": 6,
+      "options": {
+        "displayMode": "gradient",
+        "minVizHeight": 10,
+        "minVizWidth": 0,
+        "namePlacement": "auto",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showUnfilled": true,
+        "valueMode": "color"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "influxdb",
+            "uid": "vision-tms-influxdb"
+          },
+          "query": "latestSession = from(bucket: \"vision_tms\")\n  |> range(start: -30d)\n  |> filter(fn: (r) => r._measurement == \"vision_tms_session\" and r._field == \"session_duration_s\")\n  |> group()\n  |> sort(columns: [\"_time\"], desc: true)\n  |> limit(n: 1)\n  |> keep(columns: [\"session\"])\n  |> group(columns: [\"session\"])\n\nvalues = from(bucket: \"vision_tms\")\n  |> range(start: -30d)\n  |> filter(fn: (r) => r._measurement == \"vision_tms_session\")\n  |> filter(fn: (r) => r._field == \"productive_pct\" or r._field == \"transition_pct\" or r._field == \"interruption_pct\")\n  |> keep(columns: [\"session\", \"_time\", \"_field\", \"_value\"])\n  |> group(columns: [\"session\", \"_field\"])\n\njoin(tables: {values: values, latest: latestSession}, on: [\"session\"])\n  |> group(columns: [\"_field\"])\n  |> last()\n  |> keep(columns: [\"_time\", \"_field\", \"_value\"])\n  |> map(fn: (r) => ({r with _field: if r._field == \"productive_pct\" then \"Produtivo\" else if r._field == \"transition_pct\" then \"Transição\" else \"Interrupção\"}))",
+          "refId": "A"
+        }
+      ],
+      "title": "Percentagem por tipo de tempo",
+      "type": "bargauge"
+    }
+  ],
+  "preload": false,
+  "refresh": "5s",
+  "schemaVersion": 41,
+  "tags": [
+    "vision-tms"
+  ],
+  "templating": {
+    "list": []
+  },
+  "time": {
+    "from": "now-1h",
+    "to": "now"
+  },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "Vision TMS - Operador",
+  "uid": "vision-tms-operator",
+  "version": 2,
+  "weekStart": ""
+}
