@@ -73,6 +73,83 @@ class _ZoneTransitionTracker:
             debug_logger.log_zone_enter(now, relative, curr_zone, detection, frame_idx)
 
 
+class _DetectionGapTracker:
+    """Deteta periodos sem detecao por mao e guarda evidencias."""
+
+    def __init__(
+        self,
+        threshold_s: float,
+        session_start,
+        output_dir,
+        cycle_number_fn,
+        rois,
+        color_scheme,
+    ) -> None:
+        from datetime import timedelta
+
+        self._threshold = timedelta(seconds=threshold_s)
+        self._session_start = session_start
+        self._output_dir = output_dir
+        self._cycle_number_fn = cycle_number_fn
+        self._rois = rois
+        self._color_scheme = color_scheme
+        self._seen_hands: set[str] = set()
+        self._gap_start_by_hand: dict[str, object] = {}
+        self._gap_frame_by_hand: dict[str, object] = {}
+        self._gaps_per_cycle: dict[tuple[int, str], int] = {}
+
+    def update(self, detections, now, frame_rgb, debug_logger) -> None:
+        current_hands = {detection.hand_side.value for detection in detections}
+
+        for hand_side in current_hands:
+            if hand_side in self._gap_start_by_hand:
+                self._flush(hand_side, now, debug_logger)
+
+        tracked_hands = self._seen_hands | current_hands
+        for hand_side in tracked_hands - current_hands:
+            if hand_side not in self._gap_start_by_hand:
+                self._gap_start_by_hand[hand_side] = now
+                self._gap_frame_by_hand[hand_side] = frame_rgb
+
+        self._seen_hands |= current_hands
+
+    def flush(self, now, debug_logger) -> None:
+        for hand_side in list(self._gap_start_by_hand):
+            self._flush(hand_side, now, debug_logger)
+
+    def _flush(self, hand_side: str, now, debug_logger) -> None:
+        gap_start = self._gap_start_by_hand[hand_side]
+        duration = now - gap_start
+        if duration >= self._threshold:
+            relative = gap_start - self._session_start
+            debug_logger.log_detection_gap(gap_start, relative, duration, hand_side)
+            self._save_frame(hand_side)
+        self._gap_start_by_hand.pop(hand_side, None)
+        self._gap_frame_by_hand.pop(hand_side, None)
+
+    def _save_frame(self, hand_side: str) -> None:
+        import cv2
+        import numpy as np
+        from src.video import frame_annotator
+
+        gap_frame = self._gap_frame_by_hand.get(hand_side)
+        if gap_frame is None:
+            return
+
+        cycle = self._cycle_number_fn()
+        key = (cycle, hand_side)
+        count = self._gaps_per_cycle.get(key, 0) + 1
+        self._gaps_per_cycle[key] = count
+
+        suffix = f"_{count}" if count > 1 else ""
+        self._output_dir.mkdir(parents=True, exist_ok=True)
+        filename = self._output_dir / f"gap_{hand_side}_ciclo_{cycle:03d}{suffix}.jpg"
+
+        frame_bgr = cv2.cvtColor(np.asarray(gap_frame), cv2.COLOR_RGB2BGR)
+        frame_annotator.draw_rois(frame_bgr, self._rois, color_scheme=self._color_scheme)
+        cv2.imwrite(str(filename), frame_bgr)
+
+
 class _MonitorSession:
     """Orquestrador da sessão de monitorização.
 
@@ -87,10 +164,14 @@ class _MonitorSession:
         from src.metrics.metrics_calculator import MetricsCalculator
         from src.output.excel_exporter import ExcelExporter
         from src.output.influx_writer import InfluxWriter
+        from src.output.session_output import create_session_output_layout
+        from src.output.video_recorder import VideoRecorder
         from src.roi.json_roi_repository import JsonRoiRepository
         from src.tracking.activation_strategy import StillnessDwellStrategy
         from src.tracking.cycle_tracker import CycleTracker
+        from src.tracking.task_labeler import TaskLabeler
         from src.tracking.zone_classifier import ZoneClassifier
+        from src.video.frame_annotator import ZoneColorScheme
 
         self._config        = config
         self._session_start = datetime.now()
@@ -104,11 +185,21 @@ class _MonitorSession:
 
         rois                     = JsonRoiRepository(path=Path(roi_path)).load()
         self._rois               = rois
+        cycle_order              = config["tracking"]["cycle_zone_order"]
+        self._color_scheme       = ZoneColorScheme(
+            start_zone=config["tracking"].get("start_zone") or (cycle_order[0] if cycle_order else None),
+            output_zone=config["tracking"]["exit_zone"],
+            assembly_zones=tuple(config["tracking"]["two_hands_zones"]),
+        )
+        self._session_output     = create_session_output_layout(config, self._session_start)
         self._zone_classifier    = ZoneClassifier(rois)
         self._transition_tracker = _ZoneTransitionTracker(self._session_start)
 
         dwell_time   = timedelta(seconds=config["tracking"]["dwell_time_seconds"])
         task_timeout = timedelta(seconds=config["tracking"]["task_timeout_seconds"])
+        two_hands_missing_tolerance = timedelta(
+            seconds=config["tracking"].get("two_hands_missing_tolerance_seconds", 0.0)
+        )
         strategy     = StillnessDwellStrategy(config["tracking"]["stillness_threshold_px"])
 
         self._cycle_tracker    = CycleTracker(
@@ -116,12 +207,34 @@ class _MonitorSession:
             expected_order=config["tracking"]["cycle_zone_order"],
             repeat_rules=config["tracking"].get("cycle_repeat_rules", []),
         )
-        self._metrics        = MetricsCalculator(self._session_start, config["tracking"]["zones"])
-        self._excel_exporter = ExcelExporter(Path(config["output"]["excel_output_dir"]), self._session_start)
-        self._influx_writer  = InfluxWriter.from_config(config, self._session_start)
-        self._state_machine  = self._build_state_machine(dwell_time, task_timeout, strategy)
+        self._gap_tracker = _DetectionGapTracker(
+            threshold_s=config["tracking"].get("detection_gap_threshold_s", 1.0),
+            session_start=self._session_start,
+            output_dir=self._session_output.gap_frames_dir,
+            cycle_number_fn=self._cycle_tracker.current_cycle_number,
+            rois=rois,
+            color_scheme=self._color_scheme,
+        )
+        self._metrics = MetricsCalculator(self._session_start, config["tracking"]["zones"])
+        self._task_labeler = TaskLabeler(
+            assembly_zone=config["tracking"].get("assembly_zone", "Montagem"),
+            labels_by_previous_zone=config["tracking"].get("assembly_task_labels", {}),
+        )
+        self._excel_exporter = ExcelExporter(self._session_output.session_dir, self._session_start)
+        self._video_recorder = VideoRecorder(
+            self._session_output.video_path,
+            fps=config["output"].get("video_fps", 10.0),
+            enabled=config["output"].get("record_video", False),
+        )
+        self._influx_writer = InfluxWriter.from_config(config, self._session_start)
+        self._state_machine = self._build_state_machine(
+            dwell_time,
+            task_timeout,
+            two_hands_missing_tolerance,
+            strategy,
+        )
 
-    def _build_state_machine(self, dwell_time, task_timeout, strategy):
+    def _build_state_machine(self, dwell_time, task_timeout, two_hands_missing_tolerance, strategy):
         """Monta as duas máquinas de estado e o orquestrador TaskStateMachine.
 
         Separado do __init__ para isolar a lógica de construção — os imports
@@ -131,15 +244,22 @@ class _MonitorSession:
             OneHandStateMachine, TaskStateMachine, TwoHandsStateMachine,
         )
         one_hand  = OneHandStateMachine(dwell_time, task_timeout, self._cycle_tracker.current_cycle_number, strategy)
-        two_hands = TwoHandsStateMachine(dwell_time, task_timeout, self._cycle_tracker.current_cycle_number, strategy)
+        two_hands = TwoHandsStateMachine(
+            dwell_time,
+            task_timeout,
+            self._cycle_tracker.current_cycle_number,
+            strategy,
+            missing_tolerance=two_hands_missing_tolerance,
+        )
         return TaskStateMachine(one_hand, two_hands, self._config["tracking"]["two_hands_zones"])
 
     def execute(self, detection_queue, stop_event) -> None:
-        from pathlib import Path
         from src.events.debug_logger import DebugLogger
+        from src.output.session_config_snapshot import write_session_config_snapshot
 
-        output_dir = Path(self._config["output"]["excel_output_dir"])
-        with DebugLogger(output_dir, self._session_start) as debug_logger:
+        LOGGER.info("Session outputs: %s", self._session_output.session_dir)
+        with DebugLogger(self._session_output.session_dir, self._session_start) as debug_logger:
+            write_session_config_snapshot(debug_logger.path, self._config, self._rois)
             self._loop(detection_queue, stop_event, debug_logger)
 
     def _loop(self, detection_queue, stop_event, debug_logger) -> None:
@@ -157,13 +277,15 @@ class _MonitorSession:
                 except Exception:
                     LOGGER.exception("Failed to process monitor frame %s", self._frame_idx + 1)
         finally:
-            self._finalise()
+            self._finalise(debug_logger)
 
     def _process_frame(self, frame_rgb, maos, debug_logger) -> None:
         from datetime import datetime
 
         self._frame_idx += 1
         now = datetime.now()
+
+        self._gap_tracker.update(maos, now, frame_rgb, debug_logger)
 
         classified_hands = self._zone_classifier.classify(maos)
         self._transition_tracker.track(classified_hands, now, self._frame_idx, debug_logger)
@@ -174,7 +296,21 @@ class _MonitorSession:
 
         self._maybe_write_live_metrics(now)
         self._publish_program_state(classified_hands, now)
-        self._publish_frame(frame_rgb, maos)
+        annotated_frame = self._annotate_frame(frame_rgb, maos)
+        self._record_frame(annotated_frame)
+        self._publish_frame(annotated_frame)
+
+    def _annotate_frame(self, frame_rgb, maos):
+        import cv2
+        from src.video import frame_annotator
+
+        frame_bgr = cv2.cvtColor(frame_rgb, cv2.COLOR_RGB2BGR)
+        frame_annotator.draw_detections(frame_bgr, maos)
+        frame_annotator.draw_rois(frame_bgr, self._rois, color_scheme=self._color_scheme)
+        return frame_bgr
+
+    def _record_frame(self, frame_bgr) -> None:
+        self._safe_output("write annotated video frame", self._video_recorder.write, frame_bgr)
 
     def _publish_program_state(self, classified_hands, now) -> None:
         import json
@@ -233,15 +369,10 @@ class _MonitorSession:
 
         return None
 
-    def _publish_frame(self, frame_rgb, maos) -> None:
+    def _publish_frame(self, frame_bgr) -> None:
         import cv2
-        from src.video import frame_annotator
 
         try:
-            frame_bgr = cv2.cvtColor(frame_rgb, cv2.COLOR_RGB2BGR)
-            frame_annotator.draw_detections(frame_bgr, maos)
-            frame_annotator.draw_rois(frame_bgr, self._rois)
-
             ok, encoded = cv2.imencode(".jpg", frame_bgr, [cv2.IMWRITE_JPEG_QUALITY, 82])
             if not ok:
                 LOGGER.warning("Failed to encode program frame as JPEG")
@@ -254,18 +385,48 @@ class _MonitorSession:
             LOGGER.exception("Failed to publish program frame to %s", self._frame_output_path)
 
     def _handle_task_event(self, task_event, debug_logger) -> None:
-        self._log_task(task_event, debug_logger)
-
         cycle_result = self._cycle_tracker.record(task_event)
-        self._metrics.record(task_event)
-        self._safe_output("append task event to Excel output", self._excel_exporter.add_event, task_event)
-        self._safe_output("write task event to InfluxDB", self._influx_writer.write_task_event, task_event)
+        if self._cycle_tracker.last_event_started_new_cycle():
+            self._record_cycle_result(cycle_result, debug_logger)
+            cycle_result = None
+            task_event = self._event_in_current_cycle(task_event)
+
+        self._log_task(task_event, debug_logger)
+        analysis_event = self._task_labeler.label(task_event)
+        if analysis_event.counts_as_interruption:
+            self._metrics.record_interruption(analysis_event.event.duration)
+        else:
+            self._metrics.record(analysis_event.event)
+
+        self._safe_output(
+            "append task event to Excel output",
+            self._excel_exporter.add_event,
+            analysis_event.event,
+            analysis_event.counts_as_interruption,
+        )
+        self._safe_output(
+            "write task event to InfluxDB",
+            self._influx_writer.write_task_event,
+            analysis_event.event,
+            analysis_event.counts_as_interruption,
+        )
 
         if cycle_result is not None:
-            self._metrics.record_cycle(cycle_result)
-            self._safe_output("append cycle result to Excel output", self._excel_exporter.add_cycle_result, cycle_result)
-            self._safe_output("write cycle result to InfluxDB", self._influx_writer.write_cycle_result, cycle_result)
-            debug_logger.log_cycle_complete(cycle_result)
+            self._record_cycle_result(cycle_result, debug_logger)
+
+    def _event_in_current_cycle(self, task_event):
+        from dataclasses import replace
+
+        return replace(task_event, cycle_number=self._cycle_tracker.current_cycle_number())
+
+    def _record_cycle_result(self, cycle_result, debug_logger) -> None:
+        if cycle_result is None:
+            return
+
+        self._metrics.record_cycle(cycle_result)
+        self._safe_output("append cycle result to Excel output", self._excel_exporter.add_cycle_result, cycle_result)
+        self._safe_output("write cycle result to InfluxDB", self._influx_writer.write_cycle_result, cycle_result)
+        debug_logger.log_cycle_complete(cycle_result)
 
     def _log_task(self, task_event, debug_logger) -> None:
         if task_event.was_forced:
@@ -279,10 +440,14 @@ class _MonitorSession:
             self._safe_output("write live metrics to InfluxDB", self._influx_writer.write, snapshot)
             self._last_metrics_write = now
 
-    def _finalise(self) -> None:
+    def _finalise(self, debug_logger) -> None:
+        from datetime import datetime
+
+        self._safe_output("flush detection gaps", self._gap_tracker.flush, datetime.now(), debug_logger)
         snapshot = self._metrics.snapshot()
         self._safe_output("write final metrics to InfluxDB", self._influx_writer.write, snapshot)
         self._safe_output("write final Excel output", self._excel_exporter.write, snapshot)
+        self._safe_output("close annotated video", self._video_recorder.close)
         self._safe_output("close InfluxDB writer", self._influx_writer.close)
 
     def _safe_output(self, action: str, callback, *args) -> bool:

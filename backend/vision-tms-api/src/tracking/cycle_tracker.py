@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import timedelta
 from typing import Any
 
@@ -145,6 +145,11 @@ def _rules_by_expected_index(expected: list[str], repeat_rules: list[RepeatRule]
 class CycleTracker:
     """Deteta ciclos completos acumulando TaskEvents até à zona de saída.
 
+    Um ciclo só abre quando a primeira zona de expected_order é visitada,
+    evitando ciclos falsos no arranque. Se a saída falhar e, depois de ja
+    haver progresso, a primeira zona aparecer novamente, o ciclo anterior e
+    fechado como incompleto e essa nova tarefa inicia outro ciclo.
+
     Um ciclo só fecha quando a zona de saída é concluída normalmente
     (was_forced=False). Timeouts acumulam-se no ciclo mas não o fecham —
     uma interrupção não é uma saída real.
@@ -167,13 +172,30 @@ class CycleTracker:
         ]
         self._tasks_in_cycle:   list[TaskEvent] = []
         self._completed_cycles: int             = 0
+        self._cycle_open:       bool            = not bool(expected_order)
+        self._last_event_started_new_cycle: bool = False
 
     def record(self, event: TaskEvent) -> CycleResult | None:
         """Acumula o evento. Devolve CycleResult se o ciclo ficou completo."""
+        self._last_event_started_new_cycle = False
+
+        if not self._cycle_open:
+            if event.was_forced or event.zone_name != self._expected_order[0]:
+                return None
+            self._cycle_open = True
+        elif self._starts_next_cycle(event):
+            previous_cycle = self._close_current_cycle()
+            self._cycle_open = True
+            self._last_event_started_new_cycle = True
+            self._tasks_in_cycle.append(
+                replace(event, cycle_number=self.current_cycle_number())
+            )
+            return previous_cycle
+
         self._tasks_in_cycle.append(event)
 
         if self._is_cycle_complete(event):
-            return self._close_cycle()
+            return self._close_current_cycle()
 
         return None
 
@@ -190,22 +212,48 @@ class CycleTracker:
         """Tarefas já confirmadas no ciclo atual, ignorando timeouts."""
         return [task.zone_name for task in self._tasks_in_cycle if not task.was_forced]
 
+    def last_event_started_new_cycle(self) -> bool:
+        """True quando o ultimo evento fechou um ciclo incompleto e abriu outro."""
+        return self._last_event_started_new_cycle
+
     def _is_cycle_complete(self, event: TaskEvent) -> bool:
         return event.zone_name == self._exit_zone and not event.was_forced
 
-    def _close_cycle(self) -> CycleResult:
+    def _starts_next_cycle(self, event: TaskEvent) -> bool:
+        return (
+            bool(self._expected_order)
+            and not event.was_forced
+            and event.zone_name == self._expected_order[0]
+            and self._has_progress_beyond_start_zone()
+        )
+
+    def _has_progress_beyond_start_zone(self) -> bool:
+        start_zone = self._expected_order[0]
+        return any(
+            task.zone_name != start_zone
+            for task in self._tasks_in_cycle
+            if not task.was_forced
+        )
+
+    def _close_current_cycle(self) -> CycleResult:
         """Fecha o ciclo atual, valida a ordem, reinicia o acumulador e devolve o resultado."""
         actual_sequence   = [t.zone_name for t in self._tasks_in_cycle if not t.was_forced]
         sequence_in_order = _matches_order(actual_sequence, self._expected_order, self._repeat_rules)
         duration          = self._tasks_in_cycle[-1].end_time - self._tasks_in_cycle[0].start_time
         cycle_number      = self._completed_cycles + 1
+        start_time        = self._tasks_in_cycle[0].start_time
+        end_time          = self._tasks_in_cycle[-1].end_time
 
         self._tasks_in_cycle    = []
         self._completed_cycles += 1
+        self._cycle_open        = not bool(self._expected_order)
 
         return CycleResult(
+            start_time=start_time,
+            end_time=end_time,
             duration=duration,
             cycle_number=cycle_number,
             sequence_in_order=sequence_in_order,
             actual_sequence=actual_sequence,
+            expected_sequence=self._expected_order,
         )

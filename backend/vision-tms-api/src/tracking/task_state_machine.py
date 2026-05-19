@@ -5,7 +5,6 @@ from datetime import datetime, timedelta
 from typing import Callable
 
 from src.detection.hand_detection import HandDetection
-from src.shared.hand_side import HandSide
 from src.shared.task_state import TaskState
 from src.tracking.activation_strategy import ActivationStrategy
 from src.tracking.task_event import TaskEvent
@@ -71,6 +70,11 @@ class _BaseStateMachine(StateMachineInterface):
         )
         self._reset_to_idle()
         return event
+
+    def _confirm_task_from_dwell(self, dwell_start: datetime) -> None:
+        """Confirma uma tarefa real e inclui o dwell na duracao produtiva."""
+        self._task_state = TaskState.TASK_IN_PROGRESS
+        self._task_start = dwell_start
 
     @abstractmethod
     def _reset_to_idle(self) -> None:
@@ -141,8 +145,7 @@ class OneHandStateMachine(_BaseStateMachine):
         if self._dwell_start is None:
             self._dwell_start = frame_time
         elif frame_time - self._dwell_start >= self._dwell_time:
-            self._task_state = TaskState.TASK_IN_PROGRESS
-            self._task_start = frame_time
+            self._confirm_task_from_dwell(self._dwell_start)
 
         self._prev_detection = hand
 
@@ -179,12 +182,9 @@ class TwoHandsStateMachine(_BaseStateMachine):
 
     IDLE → WAITING_SECOND_HAND → DWELLING_TWO_HANDS → TASK_IN_PROGRESS → IDLE
 
-    O dwell só começa quando ambas as mãos estão paradas ao mesmo tempo.
-    Se qualquer mão sair durante TASK_IN_PROGRESS, a tarefa fecha imediatamente
-    — a lógica de montagem assume cooperação contínua de ambas as mãos.
-
-    _prev_detections é um dict por HandSide para que cada mão tenha a sua
-    referência de frame anterior independente no cálculo de velocidade.
+    O dwell começa quando ambas as mãos estão presentes ao mesmo tempo.
+    Se qualquer mão sair durante TASK_IN_PROGRESS, a tarefa só fecha depois da
+    tolerância configurada — isto evita partir a montagem por oclusões curtas.
 
     WAITING_SECOND_HAND tem timeout igual a dwell_time: se a segunda mão não
     chegar (ou uma mão ficar presa na zona sem a outra), a máquina regressa a
@@ -197,11 +197,13 @@ class TwoHandsStateMachine(_BaseStateMachine):
         task_timeout:     timedelta,
         cycle_number_fn:  Callable[[], int],
         strategy:         ActivationStrategy,
+        missing_tolerance: timedelta = timedelta(0),
     ) -> None:
         super().__init__(dwell_time, task_timeout, cycle_number_fn, strategy)
-        self._prev_detections: dict[HandSide, HandDetection] = {}
         self._waiting_start:   datetime | None               = None
         self._dwell_start:     datetime | None               = None
+        self._missing_tolerance = missing_tolerance
+        self._missing_since: datetime | None                  = None
 
     def update(self, classified_hands: list[ClassifiedHand], frame_time: datetime) -> TaskEvent | None:
         if self._task_state == TaskState.IDLE:
@@ -219,7 +221,6 @@ class TwoHandsStateMachine(_BaseStateMachine):
             if zone is None:
                 continue
             self._tracked_zone    = zone.name
-            self._prev_detections = {}
             self._waiting_start   = None
             self._dwell_start     = None
             self._task_state      = TaskState.WAITING_SECOND_HAND
@@ -260,21 +261,10 @@ class TwoHandsStateMachine(_BaseStateMachine):
             self._reset_to_idle()
             return
 
-        both_still = all(
-            self._strategy.is_active(hand, self._prev_detections.get(hand.hand_side))
-            for hand in hands
-        )
-
-        if not both_still:
-            self._dwell_start = None
-        elif self._dwell_start is None:
+        if self._dwell_start is None:
             self._dwell_start = frame_time
         elif frame_time - self._dwell_start >= self._dwell_time:
-            self._task_state = TaskState.TASK_IN_PROGRESS
-            self._task_start = frame_time
-
-        for hand in hands:
-            self._prev_detections[hand.hand_side] = hand
+            self._confirm_task_from_dwell(self._dwell_start)
 
     def _handle_in_progress(
         self,
@@ -283,8 +273,17 @@ class TwoHandsStateMachine(_BaseStateMachine):
     ) -> TaskEvent | None:
         if frame_time - self._task_start >= self._task_timeout:
             return self._complete_task(frame_time, was_forced=True)
-        if len(self._hands_in_tracked_zone(classified_hands)) < 2:
+
+        if len(self._hands_in_tracked_zone(classified_hands)) >= 2:
+            self._missing_since = None
+            return None
+
+        if self._missing_since is None:
+            self._missing_since = frame_time
+
+        if frame_time - self._missing_since >= self._missing_tolerance:
             return self._complete_task(frame_time, was_forced=False)
+
         return None
 
     def _hands_in_tracked_zone(
@@ -299,9 +298,9 @@ class TwoHandsStateMachine(_BaseStateMachine):
     def _reset_to_idle(self) -> None:
         self._task_state      = TaskState.IDLE
         self._tracked_zone    = None
-        self._prev_detections = {}
         self._waiting_start   = None
         self._dwell_start     = None
+        self._missing_since   = None
         self._task_start      = None
 
 

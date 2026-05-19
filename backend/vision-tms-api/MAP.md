@@ -29,7 +29,7 @@ O fluxo antigo de menu Python/Streamlit foi removido.
 
 ## Saídas
 
-- `output/`: CSV de debug e Excel de sessão, gerados em runtime.
+- `output/sessions/<data_hora>/`: CSV de debug, snapshot de configuração, Excel, vídeo anotado e frames de gaps, gerados em runtime.
 - `dashboard/data/`: frame e estado do programa para o stream FastAPI, gerados em runtime.
 - InfluxDB: métricas live usadas pelo Grafana.
 - Grafana: dashboard do operador provisionado em `../../grafana/provisioning`.

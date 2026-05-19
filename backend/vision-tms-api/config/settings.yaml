@@ -31,6 +31,14 @@ tracking:
   - Saida
   two_hands_zones:
   - Montagem
+  two_hands_missing_tolerance_seconds: 0.3
+  assembly_zone: Montagem
+  assembly_task_labels:
+    Chassi Inferior: Montagem Chassi Inferior
+    Porca: Montagem Porca
+    Rodas: Montagem Rodas
+    Chassi Superior: Montagem Chassi Superior
+    Parafuso: Montagem Parafuso
   cycle_zone_order:
   - Porca
   - Montagem
@@ -51,6 +59,7 @@ tracking:
     max_repeats: 4
   start_zone: Porca
   exit_zone: Saida
+  detection_gap_threshold_s: 1.0
 dashboard:
   frame_path: dashboard/data/program_frame.jpg
   state_path: dashboard/data/program_state.json
@@ -68,3 +77,6 @@ influxdb:
   queue_size: 1000
 output:
   excel_output_dir: output/
+  sessions_subdir: sessions
+  record_video: true
+  video_fps: 10.0

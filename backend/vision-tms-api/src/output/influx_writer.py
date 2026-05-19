@@ -22,7 +22,7 @@ class NullInfluxWriter:
     def write(self, snapshot: MetricsSnapshot) -> None:
         pass
 
-    def write_task_event(self, event: TaskEvent) -> None:
+    def write_task_event(self, event: TaskEvent, counts_as_interruption: bool = False) -> None:
         pass
 
     def write_cycle_result(self, result: CycleResult) -> None:
@@ -112,13 +112,14 @@ class InfluxWriter:
                 timestamp=timestamp,
             ))
 
-    def write_task_event(self, event: TaskEvent) -> None:
+    def write_task_event(self, event: TaskEvent, counts_as_interruption: bool = False) -> None:
         self._enqueue(_line(
             measurement=f"{self._prefix}_task",
             tags={**self._base_tags(), "zone": event.zone_name, "cycle": str(event.cycle_number)},
             fields={
                 "duration_s": event.duration.total_seconds(),
                 "was_forced": event.was_forced,
+                "counts_as_interruption": counts_as_interruption,
             },
             timestamp=_timestamp_ns(event.end_time),
         ))

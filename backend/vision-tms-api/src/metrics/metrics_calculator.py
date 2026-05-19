@@ -33,7 +33,7 @@ class MetricsCalculator:
 
     def record(self, event: TaskEvent) -> None:
         if event.was_forced:
-            self._interruption_time += event.duration
+            self.record_interruption(event.duration)
             return
 
         self._productive_time += event.duration
@@ -45,6 +45,10 @@ class MetricsCalculator:
             self._task_metrics[event.zone_name] = TaskMetrics()
 
         self._task_metrics[event.zone_name].add(event.duration)
+
+    def record_interruption(self, duration: timedelta) -> None:
+        """Soma duracao que deve contar como interrupcao, sem metrica de tarefa."""
+        self._interruption_time += duration
 
     def record_cycle(self, cycle_result: CycleResult) -> None:
         """Regista as métricas de um ciclo completo (duração e se a sequência foi respeitada).

@@ -82,10 +82,14 @@ class TrackingSettings(BaseModel):
     stillness_threshold_px: float = 5.0
     zones: list[str] = Field(default_factory=list)
     two_hands_zones: list[str] = Field(default_factory=list)
+    two_hands_missing_tolerance_seconds: float = 0.0
+    assembly_zone: str | None = None
+    assembly_task_labels: dict[str, str] = Field(default_factory=dict)
     cycle_zone_order: list[str] = Field(default_factory=list)
     cycle_repeat_rules: list[CycleRepeatRule] = Field(default_factory=list)
     start_zone: str | None = None
     exit_zone: str = ""
+    detection_gap_threshold_s: float = 1.0
 
 
 class SystemSettings(BaseModel):

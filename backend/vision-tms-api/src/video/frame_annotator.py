@@ -4,6 +4,8 @@ Todas operam in-place sobre o frame BGR e não guardam estado.
 """
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 import cv2
 import numpy as np
 
@@ -31,9 +33,10 @@ _HAND_COLORS: dict[str, tuple[int, int, int]] = {
     "right": (0, 200, 50),
 }
 
-_ZONE_COLOR_DEFAULT  = (50, 205, 50)
+_ZONE_COLOR_DEFAULT = (50, 205, 50)
+_ZONE_COLOR_START = (0, 200, 0)
 _ZONE_COLOR_ASSEMBLY = (0, 165, 255)
-_ZONE_COLOR_EXIT     = (255, 100, 0)
+_ZONE_COLOR_EXIT = (255, 100, 0)
 
 _ZONE_COLOR_MAP: dict[str, tuple[int, int, int]] = {
     "Montagem": _ZONE_COLOR_ASSEMBLY,
@@ -41,8 +44,22 @@ _ZONE_COLOR_MAP: dict[str, tuple[int, int, int]] = {
 }
 
 
-def zone_color(name: str) -> tuple[int, int, int]:
-    """Devolve a cor BGR da zona pelo nome. Usa _ZONE_COLOR_MAP; fallback para verde."""
+@dataclass(frozen=True)
+class ZoneColorScheme:
+    start_zone: str | None = None
+    output_zone: str | None = None
+    assembly_zones: tuple[str, ...] = ()
+
+
+def zone_color(name: str, scheme: ZoneColorScheme | None = None) -> tuple[int, int, int]:
+    """Devolve a cor BGR da zona pelo papel funcional ou pelo nome."""
+    if scheme is not None:
+        if name == scheme.start_zone:
+            return _ZONE_COLOR_START
+        if name == scheme.output_zone:
+            return _ZONE_COLOR_EXIT
+        if name in scheme.assembly_zones:
+            return _ZONE_COLOR_ASSEMBLY
     return _ZONE_COLOR_MAP.get(name, _ZONE_COLOR_DEFAULT)
 
 
@@ -111,10 +128,11 @@ def draw_rois(
     rois: RoiCollection,
     *,
     selected_name: str | None = None,
+    color_scheme: ZoneColorScheme | None = None,
 ) -> None:
     """Desenha todas as ROIs da coleção, destacando a zona com nome selected_name (se fornecido)."""
     for roi in rois.all():
-        color = zone_color(roi.name)
+        color = zone_color(roi.name, color_scheme)
         draw_roi(frame, roi, color, selected=roi.name == selected_name)
 
 
