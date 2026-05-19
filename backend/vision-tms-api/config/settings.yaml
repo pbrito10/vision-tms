@@ -7,7 +7,7 @@ camera:
   index: 0
   width: 640
   height: 480
-  flip: false
+  flip: True
   calibration_path: calibration/data/lens_calibration.npz
   perspective_path: calibration/data/perspective_calibration.npz
   open_timeout_seconds: 5
