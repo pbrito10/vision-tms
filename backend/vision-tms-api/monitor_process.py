@@ -114,6 +114,7 @@ class _MonitorSession:
         self._cycle_tracker    = CycleTracker(
             exit_zone=config["tracking"]["exit_zone"],
             expected_order=config["tracking"]["cycle_zone_order"],
+            repeat_rules=config["tracking"].get("cycle_repeat_rules", []),
         )
         self._metrics        = MetricsCalculator(self._session_start, config["tracking"]["zones"])
         self._excel_exporter = ExcelExporter(Path(config["output"]["excel_output_dir"]), self._session_start)

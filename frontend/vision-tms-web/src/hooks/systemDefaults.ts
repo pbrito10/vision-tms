@@ -41,6 +41,7 @@ export const emptySettings: SettingsResponse = {
     zones: [],
     two_hands_zones: [],
     cycle_zone_order: [],
+    cycle_repeat_rules: [],
     start_zone: null,
     exit_zone: '',
   },

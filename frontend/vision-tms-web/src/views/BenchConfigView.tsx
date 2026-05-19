@@ -188,6 +188,12 @@ export function BenchConfigView({
       ...bench,
       zones: nextZones,
       cycle_sequence: bench.cycle_sequence.filter((name) => name !== removed.name),
+      cycle_repeat_rules: bench.cycle_repeat_rules
+        .map((rule) => ({
+          ...rule,
+          sequence: rule.sequence.filter((name) => name !== removed.name),
+        }))
+        .filter((rule) => rule.sequence.length >= 2),
       start_zone: bench.start_zone !== null && nextNames.includes(bench.start_zone)
         ? bench.start_zone
         : nextNames[0] ?? null,
@@ -210,6 +216,10 @@ export function BenchConfigView({
         zoneIndex === index ? { ...zone, name } : zone,
       ),
       cycle_sequence: bench.cycle_sequence.map((step) => (step === previousName ? name : step)),
+      cycle_repeat_rules: bench.cycle_repeat_rules.map((rule) => ({
+        ...rule,
+        sequence: rule.sequence.map((step) => (step === previousName ? name : step)),
+      })),
       start_zone: bench.start_zone === previousName ? name : bench.start_zone,
       end_zone: bench.end_zone === previousName ? name : bench.end_zone,
     }))
@@ -232,6 +242,42 @@ export function BenchConfigView({
     updateSelectedBench((bench) => ({
       ...bench,
       cycle_sequence: bench.cycle_sequence.filter((_, stepIndex) => stepIndex !== index),
+    }))
+  }
+
+  const addRepeatRule = () => {
+    if (!zoneNames.length) {
+      return
+    }
+    updateSelectedBench((bench) => ({
+      ...bench,
+      cycle_repeat_rules: [
+        ...bench.cycle_repeat_rules,
+        {
+          sequence: [zoneNames[0], zoneNames[1] ?? zoneNames[0]],
+          min_repeats: 1,
+          max_repeats: 4,
+        },
+      ],
+    }))
+  }
+
+  const updateRepeatRule = (
+    index: number,
+    updater: (rule: BenchConfig['cycle_repeat_rules'][number]) => BenchConfig['cycle_repeat_rules'][number],
+  ) => {
+    updateSelectedBench((bench) => ({
+      ...bench,
+      cycle_repeat_rules: bench.cycle_repeat_rules.map((rule, ruleIndex) =>
+        ruleIndex === index ? sanitizeRepeatRule(updater(rule)) : rule,
+      ),
+    }))
+  }
+
+  const removeRepeatRule = (index: number) => {
+    updateSelectedBench((bench) => ({
+      ...bench,
+      cycle_repeat_rules: bench.cycle_repeat_rules.filter((_, ruleIndex) => ruleIndex !== index),
     }))
   }
 
@@ -644,6 +690,85 @@ export function BenchConfigView({
           ))}
         </div>
 
+        <div className="repeat-rules-heading">
+          <h3>Repeat rules</h3>
+          <button
+            type="button"
+            className="secondary-button compact-button"
+            disabled={!zoneNames.length}
+            onClick={addRepeatRule}
+          >
+            Add Rule
+          </button>
+        </div>
+
+        <div className="repeat-rule-list">
+          {selectedBench.cycle_repeat_rules.map((rule, index) => (
+            <div className="repeat-rule-row" key={`repeat-rule-${index}`}>
+              <span>{index + 1}</span>
+              <label className="field">
+                <span>First</span>
+                <select
+                  value={rule.sequence[0] ?? ''}
+                  onChange={(event) => updateRepeatRule(index, (current) => ({
+                    ...current,
+                    sequence: [event.target.value, current.sequence[1] ?? event.target.value],
+                  }))}
+                >
+                  {zoneNames.map((name) => (
+                    <option key={`repeat-first-${index}-${name}`} value={name}>
+                      {name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="field">
+                <span>Then</span>
+                <select
+                  value={rule.sequence[1] ?? rule.sequence[0] ?? ''}
+                  onChange={(event) => updateRepeatRule(index, (current) => ({
+                    ...current,
+                    sequence: [current.sequence[0] ?? event.target.value, event.target.value],
+                  }))}
+                >
+                  {zoneNames.map((name) => (
+                    <option key={`repeat-then-${index}-${name}`} value={name}>
+                      {name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="field repeat-count-field">
+                <span>Min</span>
+                <input
+                  min="1"
+                  type="number"
+                  value={rule.min_repeats}
+                  onChange={(event) => updateRepeatRule(index, (current) => ({
+                    ...current,
+                    min_repeats: Number(event.target.value),
+                  }))}
+                />
+              </label>
+              <label className="field repeat-count-field">
+                <span>Max</span>
+                <input
+                  min="1"
+                  type="number"
+                  value={rule.max_repeats}
+                  onChange={(event) => updateRepeatRule(index, (current) => ({
+                    ...current,
+                    max_repeats: Number(event.target.value),
+                  }))}
+                />
+              </label>
+              <button type="button" className="danger-button compact-button" onClick={() => removeRepeatRule(index)}>
+                Remove
+              </button>
+            </div>
+          ))}
+        </div>
+
         <button type="button" className="primary-button save-button" disabled={isCommandPending} onClick={save}>
           {saved ? 'Saved' : 'Save Bench Configuration'}
         </button>
@@ -724,6 +849,7 @@ function normalizeBench(bench: Partial<BenchConfig>, frameSize: FrameSize): Benc
     name: bench.name ?? 'Bancada 1',
     zones,
     cycle_sequence: bench.cycle_sequence ?? [],
+    cycle_repeat_rules: (bench.cycle_repeat_rules ?? []).map(sanitizeRepeatRule),
     start_zone: bench.start_zone ?? zones[0]?.name ?? null,
     end_zone: bench.end_zone ?? zones.at(-1)?.name ?? null,
   }
@@ -775,6 +901,11 @@ function duplicateBench(bench: BenchConfig, index: number): BenchConfig {
     name: `Bancada ${index}`,
     zones: bench.zones.map((zone) => ({ ...zone })),
     cycle_sequence: [...bench.cycle_sequence],
+    cycle_repeat_rules: bench.cycle_repeat_rules.map((rule) => ({
+      sequence: [...rule.sequence],
+      min_repeats: rule.min_repeats,
+      max_repeats: rule.max_repeats,
+    })),
   }
 }
 
@@ -842,7 +973,18 @@ function createEmptyBench(): BenchConfig {
     name: 'Bancada 1',
     zones: [],
     cycle_sequence: [],
+    cycle_repeat_rules: [],
     start_zone: null,
     end_zone: null,
+  }
+}
+
+function sanitizeRepeatRule(rule: BenchConfig['cycle_repeat_rules'][number]): BenchConfig['cycle_repeat_rules'][number] {
+  const minRepeats = Math.max(1, Math.round(Number(rule.min_repeats) || 1))
+  const maxRepeats = Math.max(minRepeats, Math.round(Number(rule.max_repeats) || minRepeats))
+  return {
+    sequence: rule.sequence.slice(0, 2),
+    min_repeats: minRepeats,
+    max_repeats: maxRepeats,
   }
 }

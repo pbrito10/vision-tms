@@ -1,40 +1,145 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 from datetime import timedelta
+from typing import Any
 
 from src.tracking.cycle_result import CycleResult
 from src.tracking.task_event import TaskEvent
 
 
-def _matches_order(actual: list[str], expected: list[str]) -> bool:
+@dataclass(frozen=True)
+class RepeatRule:
+    """A repeatable block inside the expected cycle sequence."""
+
+    sequence: tuple[str, ...]
+    min_repeats: int
+    max_repeats: int
+
+    @classmethod
+    def from_config(cls, raw: dict[str, Any]) -> "RepeatRule":
+        sequence = tuple(str(zone) for zone in raw.get("sequence", []) if zone)
+        min_repeats = int(raw.get("min_repeats", 1))
+        max_repeats = int(raw.get("max_repeats", min_repeats))
+
+        if not sequence:
+            raise ValueError("Repeat rule sequence cannot be empty.")
+        if min_repeats < 1:
+            raise ValueError("Repeat rule min_repeats must be at least 1.")
+        if max_repeats < min_repeats:
+            raise ValueError("Repeat rule max_repeats must be greater than or equal to min_repeats.")
+
+        return cls(sequence=sequence, min_repeats=min_repeats, max_repeats=max_repeats)
+
+
+def _matches_order(
+    actual: list[str],
+    expected: list[str],
+    repeat_rules: list[RepeatRule] | None = None,
+) -> bool:
     """Verifica se a sequência real respeita a ordem esperada.
 
     Permite repetições consecutivas da mesma zona (ex: o operador vai três
     vezes às Rodas antes de avançar) mas não permite saltar zonas nem
-    visitá-las fora de ordem.
-
-    Algoritmo de ponteiro único: ptr aponta para a zona esperada atual.
-    Ao encontrar a zona seguinte, avança o ptr. Qualquer outra zona falha.
+    visitá-las fora de ordem. Também permite blocos repetíveis configurados,
+    como Rodas → Montagem entre 1 e 4 vezes antes de continuar o ciclo.
     """
     if not expected:
         return True
     if not actual:
         return False
 
-    ptr             = 0
-    entered_current = False
+    rules_by_index = _rules_by_expected_index(expected, repeat_rules or [])
+    return _match_from(actual, expected, rules_by_index, actual_index=0, expected_index=0)
 
-    for zone in actual:
-        if zone == expected[ptr]:
-            entered_current = True
-            continue
-        if entered_current and ptr + 1 < len(expected) and zone == expected[ptr + 1]:
-            ptr            += 1
-            entered_current = True
-            continue
+
+def _match_from(
+    actual: list[str],
+    expected: list[str],
+    rules_by_index: dict[int, RepeatRule],
+    *,
+    actual_index: int,
+    expected_index: int,
+) -> bool:
+    if expected_index == len(expected):
+        return actual_index == len(actual)
+
+    repeat_rule = rules_by_index.get(expected_index)
+    if repeat_rule is not None:
+        return _match_repeat_rule(actual, expected, rules_by_index, repeat_rule, actual_index, expected_index)
+
+    next_actual_index = _consume_zone_run(actual, actual_index, expected[expected_index])
+    if next_actual_index is None:
         return False
 
-    return entered_current and ptr == len(expected) - 1
+    return _match_from(
+        actual,
+        expected,
+        rules_by_index,
+        actual_index=next_actual_index,
+        expected_index=expected_index + 1,
+    )
+
+
+def _match_repeat_rule(
+    actual: list[str],
+    expected: list[str],
+    rules_by_index: dict[int, RepeatRule],
+    repeat_rule: RepeatRule,
+    actual_index: int,
+    expected_index: int,
+) -> bool:
+    cursor = actual_index
+    next_expected_index = expected_index + len(repeat_rule.sequence)
+
+    for repeat_count in range(1, repeat_rule.max_repeats + 1):
+        next_cursor = _consume_sequence(actual, cursor, repeat_rule.sequence)
+        if next_cursor is None:
+            return False
+
+        cursor = next_cursor
+        if repeat_count < repeat_rule.min_repeats:
+            continue
+
+        if _match_from(
+            actual,
+            expected,
+            rules_by_index,
+            actual_index=cursor,
+            expected_index=next_expected_index,
+        ):
+            return True
+
+    return False
+
+
+def _consume_sequence(actual: list[str], actual_index: int, expected_sequence: tuple[str, ...]) -> int | None:
+    cursor = actual_index
+    for expected_zone in expected_sequence:
+        cursor = _consume_zone_run(actual, cursor, expected_zone)
+        if cursor is None:
+            return None
+    return cursor
+
+
+def _consume_zone_run(actual: list[str], actual_index: int, expected_zone: str) -> int | None:
+    if actual_index >= len(actual) or actual[actual_index] != expected_zone:
+        return None
+
+    cursor = actual_index + 1
+    while cursor < len(actual) and actual[cursor] == expected_zone:
+        cursor += 1
+    return cursor
+
+
+def _rules_by_expected_index(expected: list[str], repeat_rules: list[RepeatRule]) -> dict[int, RepeatRule]:
+    result: dict[int, RepeatRule] = {}
+    for rule in repeat_rules:
+        for index in range(0, len(expected) - len(rule.sequence) + 1):
+            if tuple(expected[index:index + len(rule.sequence)]) == rule.sequence:
+                result[index] = rule
+                break
+    return result
 
 
 class CycleTracker:
@@ -48,9 +153,18 @@ class CycleTracker:
     porque representam tempo de espera, não passos de montagem.
     """
 
-    def __init__(self, exit_zone: str, expected_order: list[str]) -> None:
+    def __init__(
+        self,
+        exit_zone: str,
+        expected_order: list[str],
+        repeat_rules: list[dict[str, Any]] | None = None,
+    ) -> None:
         self._exit_zone:        str             = exit_zone
         self._expected_order:   list[str]       = expected_order
+        self._repeat_rules:     list[RepeatRule] = [
+            RepeatRule.from_config(rule)
+            for rule in repeat_rules or []
+        ]
         self._tasks_in_cycle:   list[TaskEvent] = []
         self._completed_cycles: int             = 0
 
@@ -82,7 +196,7 @@ class CycleTracker:
     def _close_cycle(self) -> CycleResult:
         """Fecha o ciclo atual, valida a ordem, reinicia o acumulador e devolve o resultado."""
         actual_sequence   = [t.zone_name for t in self._tasks_in_cycle if not t.was_forced]
-        sequence_in_order = _matches_order(actual_sequence, self._expected_order)
+        sequence_in_order = _matches_order(actual_sequence, self._expected_order, self._repeat_rules)
         duration          = self._tasks_in_cycle[-1].end_time - self._tasks_in_cycle[0].start_time
         cycle_number      = self._completed_cycles + 1
 

@@ -43,6 +43,12 @@ tracking:
   - Parafuso
   - Montagem
   - Saida
+  cycle_repeat_rules:
+  - sequence:
+    - Rodas
+    - Montagem
+    min_repeats: 1
+    max_repeats: 4
   start_zone: Porca
   exit_zone: Saida
 dashboard:

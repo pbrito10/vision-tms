@@ -76,7 +76,17 @@
         "Saida"
       ],
       "start_zone": "Porca",
-      "end_zone": "Saida"
+      "end_zone": "Saida",
+      "cycle_repeat_rules": [
+        {
+          "sequence": [
+            "Rodas",
+            "Montagem"
+          ],
+          "min_repeats": 1,
+          "max_repeats": 4
+        }
+      ]
     },
     {
       "id": "a154e2cc-e922-43b9-9d37-6df2258f88f2",
@@ -115,7 +125,8 @@
         "Duas maos"
       ],
       "start_zone": "Mao 1",
-      "end_zone": "Duas maos"
+      "end_zone": "Duas maos",
+      "cycle_repeat_rules": []
     }
   ]
 }

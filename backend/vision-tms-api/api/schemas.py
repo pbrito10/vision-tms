@@ -70,6 +70,12 @@ class DetectionSettings(BaseModel):
     min_tracking_confidence: float = 0.7
 
 
+class CycleRepeatRule(BaseModel):
+    sequence: list[str] = Field(default_factory=list)
+    min_repeats: int = 1
+    max_repeats: int = 1
+
+
 class TrackingSettings(BaseModel):
     dwell_time_seconds: float = 0.5
     task_timeout_seconds: float = 30.0
@@ -77,6 +83,7 @@ class TrackingSettings(BaseModel):
     zones: list[str] = Field(default_factory=list)
     two_hands_zones: list[str] = Field(default_factory=list)
     cycle_zone_order: list[str] = Field(default_factory=list)
+    cycle_repeat_rules: list[CycleRepeatRule] = Field(default_factory=list)
     start_zone: str | None = None
     exit_zone: str = ""
 
@@ -109,6 +116,7 @@ class BenchConfig(BaseModel):
     name: str
     zones: list[BenchZone] = Field(default_factory=list)
     cycle_sequence: list[str] = Field(default_factory=list)
+    cycle_repeat_rules: list[CycleRepeatRule] = Field(default_factory=list)
     start_zone: str | None = None
     end_zone: str | None = None
 

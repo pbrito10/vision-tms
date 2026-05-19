@@ -578,7 +578,8 @@ button:disabled:hover {
 }
 
 .zone-list,
-.sequence-list {
+.sequence-list,
+.repeat-rule-list {
   display: grid;
   gap: 10px;
 }
@@ -751,6 +752,46 @@ button:disabled:hover {
 
 .sequence-row strong {
   color: var(--ink);
+}
+
+.repeat-rules-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 18px;
+  margin-bottom: 10px;
+}
+
+.repeat-rules-heading h3 {
+  margin: 0;
+  color: var(--ink);
+  font-size: 15px;
+}
+
+.repeat-rule-row {
+  display: grid;
+  grid-template-columns: 34px minmax(140px, 1fr) minmax(140px, 1fr) 80px 80px auto;
+  gap: 8px;
+  align-items: end;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #f8fbf9;
+}
+
+.repeat-rule-row > span {
+  display: grid;
+  width: 28px;
+  height: 42px;
+  place-items: center;
+  color: #0a3028;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.repeat-count-field input {
+  padding-inline: 8px;
 }
 
 @media (max-width: 1180px) {

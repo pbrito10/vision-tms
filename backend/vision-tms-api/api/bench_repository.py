@@ -10,7 +10,7 @@ from api.config_repository import ConfigRepository
 from api.model_utils import model_dump
 from api.paths import BASE_DIR, BENCHES_PATH
 from api.roi_service import RoiService
-from api.schemas import BenchConfig, BenchConfigResponse, BenchZone
+from api.schemas import BenchConfig, BenchConfigResponse, BenchZone, CycleRepeatRule
 
 logger = logging.getLogger(__name__)
 
@@ -83,6 +83,7 @@ class BenchRepository:
         tracking["zones"] = [zone.name for zone in zones]
         tracking["two_hands_zones"] = [zone.name for zone in zones if zone.two_hands]
         tracking["cycle_zone_order"] = bench.cycle_sequence
+        tracking["cycle_repeat_rules"] = [model_dump(rule) for rule in bench.cycle_repeat_rules]
         tracking["start_zone"] = bench.start_zone
         tracking["exit_zone"] = bench.end_zone
 
@@ -170,6 +171,7 @@ class BenchRepository:
             name=system.get("line_name", "Bancada 1"),
             zones=zones,
             cycle_sequence=tracking.get("cycle_zone_order", []),
+            cycle_repeat_rules=tracking.get("cycle_repeat_rules", []),
             start_zone=tracking.get("start_zone") or self._infer_start_zone(tracking),
             end_zone=tracking.get("exit_zone"),
         )
@@ -256,6 +258,8 @@ class BenchRepository:
                 f"Bench '{name}' sequence references unknown zones: {', '.join(missing_sequence)}."
             )
 
+        repeat_rules = self._clean_repeat_rules(bench.cycle_repeat_rules, valid_names, name)
+
         start_zone = bench.start_zone.strip() if bench.start_zone else zone_names[0]
         end_zone = bench.end_zone.strip() if bench.end_zone else zone_names[-1]
         if start_zone not in valid_names:
@@ -268,9 +272,46 @@ class BenchRepository:
             name=name,
             zones=zones,
             cycle_sequence=cycle_sequence,
+            cycle_repeat_rules=repeat_rules,
             start_zone=start_zone,
             end_zone=end_zone,
         )
+
+    def _clean_repeat_rules(
+        self,
+        repeat_rules: list[CycleRepeatRule],
+        valid_names: set[str],
+        bench_name: str,
+    ) -> list[CycleRepeatRule]:
+        clean_rules = []
+        for rule in repeat_rules:
+            sequence = [zone_name.strip() for zone_name in rule.sequence if zone_name.strip()]
+            if not sequence:
+                continue
+
+            missing = sorted(set(sequence) - valid_names)
+            if missing:
+                raise ValueError(
+                    f"Bench '{bench_name}' repeat rule references unknown zones: {', '.join(missing)}."
+                )
+
+            min_repeats = int(rule.min_repeats)
+            max_repeats = int(rule.max_repeats)
+            if min_repeats < 1:
+                raise ValueError(f"Bench '{bench_name}' repeat rule minimum must be at least 1.")
+            if max_repeats < min_repeats:
+                raise ValueError(
+                    f"Bench '{bench_name}' repeat rule maximum must be greater than or equal to minimum."
+                )
+
+            clean_rules.append(
+                CycleRepeatRule(
+                    sequence=sequence,
+                    min_repeats=min_repeats,
+                    max_repeats=max_repeats,
+                )
+            )
+        return clean_rules
 
     def _bench_by_id(self, collection: BenchConfigResponse, bench_id: str | None) -> BenchConfig:
         for bench in collection.benches:

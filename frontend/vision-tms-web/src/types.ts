@@ -59,8 +59,15 @@ export interface TrackingSettings {
   zones: string[]
   two_hands_zones: string[]
   cycle_zone_order: string[]
+  cycle_repeat_rules: CycleRepeatRule[]
   start_zone: string | null
   exit_zone: string
+}
+
+export interface CycleRepeatRule {
+  sequence: string[]
+  min_repeats: number
+  max_repeats: number
 }
 
 export interface SystemSettings {
@@ -91,6 +98,7 @@ export interface BenchConfig {
   name: string
   zones: BenchZone[]
   cycle_sequence: string[]
+  cycle_repeat_rules: CycleRepeatRule[]
   start_zone: string | null
   end_zone: string | null
 }
