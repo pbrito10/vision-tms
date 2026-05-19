@@ -37,7 +37,7 @@ services:
       - backend
 
   influxdb:
-    image: influxdb:2.7
+    image: influxdb:2.7.12
     container_name: vision-tms-influxdb
     ports:
       - "8086:8086"
@@ -58,7 +58,7 @@ services:
       retries: 5
 
   grafana:
-    image: grafana/grafana:latest
+    image: grafana/grafana:13.0.1-security-01
     container_name: vision-tms-grafana
     ports:
       - "3000:3000"
