@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -25,6 +26,8 @@ from api.schemas import (
     SystemSettings,
     TrackingSettings,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class SystemService:
@@ -73,7 +76,7 @@ class SystemService:
         config = self._config_repository.load()
         return SettingsResponse(
             system=SystemSettings(**config.get("system", {})),
-            camera=CameraSettings(**config.get("camera", {})),
+            camera=CameraSettings(**self._effective_camera_settings(config.get("camera", {}))),
             detection=DetectionSettings(**config.get("detection", {})),
             tracking=TrackingSettings(**config.get("tracking", {})),
         )
@@ -161,3 +164,26 @@ class SystemService:
             frame_path.unlink()
         except FileNotFoundError:
             pass
+
+    def _effective_camera_settings(self, camera_config: dict[str, Any]) -> dict[str, Any]:
+        settings = dict(camera_config)
+        perspective_path = settings.get("perspective_path")
+        if not perspective_path:
+            return settings
+
+        try:
+            import numpy as np
+
+            path = Path(perspective_path)
+            if not path.is_absolute():
+                path = BASE_DIR / path
+            if not path.exists():
+                return settings
+
+            output_width, output_height = np.load(path)["output_size"].tolist()
+            settings["width"] = int(output_width)
+            settings["height"] = int(output_height)
+        except Exception:
+            logger.exception("Failed to read perspective output size from %s", perspective_path)
+
+        return settings

@@ -6,6 +6,11 @@ export type CheckStatus = 'ok' | 'warning' | 'error'
 
 export type AppView = 'run' | 'camera' | 'bench'
 
+export interface FrameSize {
+  width: number
+  height: number
+}
+
 export interface SystemCheck {
   name: string
   value: string

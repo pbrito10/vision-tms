@@ -42,6 +42,7 @@ function App() {
       <BenchConfigView
         key={system.isLoading ? 'bench-loading' : 'bench-ready'}
         benchConfig={system.benchConfig}
+        cameraFrameSize={system.settings.camera}
         isCommandPending={system.isCommandPending}
         onSave={system.saveBenchConfig}
       />

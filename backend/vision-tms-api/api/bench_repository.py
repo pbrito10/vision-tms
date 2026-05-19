@@ -1,15 +1,21 @@
 from __future__ import annotations
 
 import json
+import logging
 import threading
 from pathlib import Path
 from typing import Any
 
 from api.config_repository import ConfigRepository
 from api.model_utils import model_dump
-from api.paths import BENCHES_PATH
+from api.paths import BASE_DIR, BENCHES_PATH
 from api.roi_service import RoiService
 from api.schemas import BenchConfig, BenchConfigResponse, BenchZone
+
+logger = logging.getLogger(__name__)
+
+_LEGACY_FRAME_WIDTH = 640
+_LEGACY_FRAME_HEIGHT = 480
 
 
 class BenchRepository:
@@ -72,7 +78,7 @@ class BenchRepository:
     def apply(self, bench: BenchConfig) -> None:
         config = self._config_repository.load()
         tracking = config.setdefault("tracking", {})
-        zones = bench.zones
+        zones = self._scale_legacy_zones_if_needed(bench.zones, config)
 
         tracking["zones"] = [zone.name for zone in zones]
         tracking["two_hands_zones"] = [zone.name for zone in zones if zone.two_hands]
@@ -82,6 +88,75 @@ class BenchRepository:
 
         self._roi_service.save_zones(zones)
         self._config_repository.save(config)
+
+    def _scale_legacy_zones_if_needed(
+        self,
+        zones: list[BenchZone],
+        config: dict[str, Any],
+    ) -> list[BenchZone]:
+        if not zones:
+            return zones
+
+        frame_width, frame_height = self._effective_frame_size(config)
+        if frame_width == _LEGACY_FRAME_WIDTH and frame_height == _LEGACY_FRAME_HEIGHT:
+            return zones
+
+        max_right = max(zone.x + zone.width for zone in zones)
+        max_bottom = max(zone.y + zone.height for zone in zones)
+        looks_like_legacy_frame = (
+            max_right <= _LEGACY_FRAME_WIDTH
+            and max_bottom <= _LEGACY_FRAME_HEIGHT
+            and (
+                max_right >= _LEGACY_FRAME_WIDTH * 0.9
+                or max_bottom >= _LEGACY_FRAME_HEIGHT * 0.9
+            )
+        )
+        if not looks_like_legacy_frame:
+            return zones
+
+        scale_x = frame_width / _LEGACY_FRAME_WIDTH
+        scale_y = frame_height / _LEGACY_FRAME_HEIGHT
+        logger.info(
+            "Scaling legacy bench zones from %sx%s to %sx%s",
+            _LEGACY_FRAME_WIDTH,
+            _LEGACY_FRAME_HEIGHT,
+            frame_width,
+            frame_height,
+        )
+        return [
+            BenchZone(
+                name=zone.name,
+                x=round(zone.x * scale_x),
+                y=round(zone.y * scale_y),
+                width=round(zone.width * scale_x),
+                height=round(zone.height * scale_y),
+                two_hands=zone.two_hands,
+            )
+            for zone in zones
+        ]
+
+    def _effective_frame_size(self, config: dict[str, Any]) -> tuple[int, int]:
+        camera_config = config.get("camera", {})
+        width = int(camera_config.get("width", _LEGACY_FRAME_WIDTH))
+        height = int(camera_config.get("height", _LEGACY_FRAME_HEIGHT))
+        perspective_path = camera_config.get("perspective_path")
+        if not perspective_path:
+            return width, height
+
+        try:
+            import numpy as np
+
+            path = Path(perspective_path)
+            if not path.is_absolute():
+                path = BASE_DIR / path
+            if not path.exists():
+                return width, height
+
+            output_width, output_height = np.load(path)["output_size"].tolist()
+            return int(output_width), int(output_height)
+        except Exception:
+            logger.exception("Failed to read perspective output size from %s", perspective_path)
+            return width, height
 
     def _migration_collection(self) -> BenchConfigResponse:
         config = self._config_repository.load()
