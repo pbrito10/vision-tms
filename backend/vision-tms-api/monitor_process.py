@@ -291,6 +291,7 @@ class _MonitorSession:
         self._transition_tracker.track(classified_hands, now, self._frame_idx, debug_logger)
 
         task_event = self._state_machine.update(classified_hands, now)
+        self._log_task_diagnostics(debug_logger)
         if task_event is not None:
             self._handle_task_event(task_event, debug_logger)
 
@@ -433,6 +434,10 @@ class _MonitorSession:
             debug_logger.log_task_timeout(task_event)
             return
         debug_logger.log_task_complete(task_event)
+
+    def _log_task_diagnostics(self, debug_logger) -> None:
+        for diagnostic in self._state_machine.pop_diagnostics():
+            debug_logger.log_task_rejected(diagnostic)
 
     def _maybe_write_live_metrics(self, now) -> None:
         if now - self._last_metrics_write >= self._refresh_interval:
