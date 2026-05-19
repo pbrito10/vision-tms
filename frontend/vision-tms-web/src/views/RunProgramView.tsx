@@ -1,6 +1,19 @@
 import { apiClient } from '../api/client'
 import { InspectionPreview } from '../components/ui'
+import type { BenchConfigResponse, Program, ProgramStateResponse, RuntimeStatus } from '../types'
 import { stateLabel } from '../utils/runtime'
+
+interface RunProgramViewProps {
+  benchConfig: BenchConfigResponse
+  isCommandPending: boolean
+  onStart: (benchId: string) => void
+  onStop: () => void
+  programState: ProgramStateResponse
+  programs: Program[]
+  selectedBenchId: string
+  setSelectedBenchId: (benchId: string) => void
+  status: RuntimeStatus
+}
 
 export function RunProgramView({
   benchConfig,
@@ -12,7 +25,7 @@ export function RunProgramView({
   selectedBenchId,
   setSelectedBenchId,
   status,
-}) {
+}: RunProgramViewProps) {
   const benches = benchConfig.benches ?? []
   const activeProgram = programs[0]
   const selectedBench = benches.find((bench) => bench.id === selectedBenchId) ?? benches[0]

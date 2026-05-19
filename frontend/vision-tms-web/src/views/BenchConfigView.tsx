@@ -1,11 +1,70 @@
 import { useState } from 'react'
+import type { CSSProperties, PointerEvent } from 'react'
 import { apiClient } from '../api/client'
+import type { BenchConfig, BenchConfigResponse, BenchZone } from '../types'
 
 const FRAME_WIDTH = 640
 const FRAME_HEIGHT = 480
 const SNAPSHOT_STORAGE_KEY = 'vision-tms-bench-preview-snapshot'
 
-export function BenchConfigView({ benchConfig, isCommandPending, onSave }) {
+interface LegacyBenchConfigResponse {
+  active_bench_id?: string | null
+  zones?: BenchZone[]
+  cycle_sequence?: string[]
+  start_zone?: string | null
+  end_zone?: string | null
+  benches?: BenchConfig[]
+}
+
+interface Point {
+  x: number
+  y: number
+}
+
+interface Box {
+  x: number
+  y: number
+  width: number
+  height: number
+}
+
+type DragState =
+  | {
+      mode: 'pending-create'
+      startX: number
+      startY: number
+      currentX: number
+      currentY: number
+    }
+  | {
+      mode: 'create'
+      startX: number
+      startY: number
+      currentX: number
+      currentY: number
+    }
+  | {
+      mode: 'move'
+      index: number
+      startX: number
+      startY: number
+      original: Box
+    }
+  | {
+      mode: 'resize'
+      index: number
+      startX: number
+      startY: number
+      original: Box
+    }
+
+interface BenchConfigViewProps {
+  benchConfig: BenchConfigResponse
+  isCommandPending: boolean
+  onSave: (benchConfig: BenchConfigResponse) => Promise<BenchConfigResponse>
+}
+
+export function BenchConfigView({ benchConfig, isCommandPending, onSave }: BenchConfigViewProps) {
   const initialConfig = normalizeBenchCollection(benchConfig)
   const [draft, setDraft] = useState(initialConfig)
   const [selectedBenchId, setSelectedBenchId] = useState(initialConfig.active_bench_id)
@@ -15,21 +74,25 @@ export function BenchConfigView({ benchConfig, isCommandPending, onSave }) {
   const [snapshotError, setSnapshotError] = useState('')
   const [isSnapshotPending, setIsSnapshotPending] = useState(false)
   const [saved, setSaved] = useState(false)
-  const [dragState, setDragState] = useState(null)
+  const [dragState, setDragState] = useState<DragState | null>(null)
 
-  const selectedBench = draft.benches.find((bench) => bench.id === selectedBenchId) ?? draft.benches[0]
+  const selectedBench = draft.benches.find((bench) => bench.id === selectedBenchId)
+    ?? draft.benches[0]
+    ?? createEmptyBench()
   const selectedZone = selectedBench?.zones[selectedZoneIndex]
   const zoneNames = selectedBench?.zones.map((zone) => zone.name) ?? []
   const isActiveBench = selectedBench?.id === draft.active_bench_id
 
-  const selectBench = (benchId) => {
-    const nextBench = draft.benches.find((bench) => bench.id === benchId) ?? draft.benches[0]
+  const selectBench = (benchId: string) => {
+    const nextBench = draft.benches.find((bench) => bench.id === benchId)
+      ?? draft.benches[0]
+      ?? createEmptyBench()
     setSelectedBenchId(nextBench.id)
     setSelectedZoneIndex(0)
     setSequenceZone(nextBench.zones[0]?.name ?? '')
   }
 
-  const updateSelectedBench = (updater) => {
+  const updateSelectedBench = (updater: (bench: BenchConfig) => BenchConfig) => {
     setDraft((current) => ({
       ...current,
       benches: current.benches.map((bench) =>
@@ -38,7 +101,7 @@ export function BenchConfigView({ benchConfig, isCommandPending, onSave }) {
     }))
   }
 
-  const renameBench = (name) => {
+  const renameBench = (name: string) => {
     updateSelectedBench((bench) => ({ ...bench, name }))
   }
 
@@ -59,7 +122,7 @@ export function BenchConfigView({ benchConfig, isCommandPending, onSave }) {
     }
 
     const remaining = draft.benches.filter((bench) => bench.id !== selectedBench.id)
-    const nextSelected = remaining[0]
+    const nextSelected = remaining[0] ?? createEmptyBench()
     setDraft((current) => ({
       ...current,
       active_bench_id:
@@ -75,7 +138,7 @@ export function BenchConfigView({ benchConfig, isCommandPending, onSave }) {
     setDraft((current) => ({ ...current, active_bench_id: selectedBench.id }))
   }
 
-  const updateZone = (index, key, value) => {
+  const updateZone = <K extends keyof BenchZone>(index: number, key: K, value: BenchZone[K]) => {
     updateSelectedBench((bench) => ({
       ...bench,
       zones: bench.zones.map((zone, zoneIndex) =>
@@ -84,7 +147,7 @@ export function BenchConfigView({ benchConfig, isCommandPending, onSave }) {
     }))
   }
 
-  const updateZoneBox = (index, nextBox) => {
+  const updateZoneBox = (index: number, nextBox: Box) => {
     updateSelectedBench((bench) => ({
       ...bench,
       zones: bench.zones.map((zone, zoneIndex) =>
@@ -93,9 +156,7 @@ export function BenchConfigView({ benchConfig, isCommandPending, onSave }) {
     }))
   }
 
-
-
-  const createZone = (box) => {
+  const createZone = (box: Box) => {
     const zone = createZoneModel(selectedBench.zones.length + 1, clampBox(box))
     updateSelectedBench((bench) => ({
       ...bench,
@@ -107,8 +168,11 @@ export function BenchConfigView({ benchConfig, isCommandPending, onSave }) {
     setSelectedZoneIndex(selectedBench.zones.length)
   }
 
-  const removeZone = (index) => {
+  const removeZone = (index: number) => {
     const removed = selectedBench.zones[index]
+    if (removed === undefined) {
+      return
+    }
     const nextZones = selectedBench.zones.filter((_, zoneIndex) => zoneIndex !== index)
     const nextNames = nextZones.map((zone) => zone.name)
 
@@ -116,15 +180,22 @@ export function BenchConfigView({ benchConfig, isCommandPending, onSave }) {
       ...bench,
       zones: nextZones,
       cycle_sequence: bench.cycle_sequence.filter((name) => name !== removed.name),
-      start_zone: nextNames.includes(bench.start_zone) ? bench.start_zone : nextNames[0] ?? null,
-      end_zone: nextNames.includes(bench.end_zone) ? bench.end_zone : nextNames.at(-1) ?? null,
+      start_zone: bench.start_zone !== null && nextNames.includes(bench.start_zone)
+        ? bench.start_zone
+        : nextNames[0] ?? null,
+      end_zone: bench.end_zone !== null && nextNames.includes(bench.end_zone)
+        ? bench.end_zone
+        : nextNames.at(-1) ?? null,
     }))
     setSelectedZoneIndex(Math.max(0, index - 1))
     setSequenceZone(nextNames[0] ?? '')
   }
 
-  const renameZone = (index, name) => {
-    const previousName = selectedBench.zones[index].name
+  const renameZone = (index: number, name: string) => {
+    const previousName = selectedBench.zones[index]?.name
+    if (previousName === undefined) {
+      return
+    }
     updateSelectedBench((bench) => ({
       ...bench,
       zones: bench.zones.map((zone, zoneIndex) =>
@@ -149,14 +220,14 @@ export function BenchConfigView({ benchConfig, isCommandPending, onSave }) {
     }))
   }
 
-  const removeSequenceStep = (index) => {
+  const removeSequenceStep = (index: number) => {
     updateSelectedBench((bench) => ({
       ...bench,
       cycle_sequence: bench.cycle_sequence.filter((_, stepIndex) => stepIndex !== index),
     }))
   }
 
-  const moveSequenceStep = (index, direction) => {
+  const moveSequenceStep = (index: number, direction: number) => {
     const target = index + direction
     if (target < 0 || target >= selectedBench.cycle_sequence.length) {
       return
@@ -164,6 +235,9 @@ export function BenchConfigView({ benchConfig, isCommandPending, onSave }) {
     updateSelectedBench((bench) => {
       const sequence = [...bench.cycle_sequence]
       const [item] = sequence.splice(index, 1)
+      if (item === undefined) {
+        return bench
+      }
       sequence.splice(target, 0, item)
       return { ...bench, cycle_sequence: sequence }
     })
@@ -186,7 +260,7 @@ export function BenchConfigView({ benchConfig, isCommandPending, onSave }) {
 
   const MIN_CREATE_DISTANCE = 6
 
-  const startDrawing = (event) => {
+  const startDrawing = (event: PointerEvent<HTMLDivElement>) => {
     if (event.target !== event.currentTarget) {
       return
     }
@@ -202,11 +276,14 @@ export function BenchConfigView({ benchConfig, isCommandPending, onSave }) {
     event.currentTarget.setPointerCapture(event.pointerId)
   }
 
-  const startMoving = (event, index) => {
+  const startMoving = (event: PointerEvent<HTMLButtonElement>, index: number) => {
     event.stopPropagation()
     setSelectedZoneIndex(index)
     const point = eventToFramePoint(event)
     const zone = selectedBench.zones[index]
+    if (zone === undefined) {
+      return
+    }
     setDragState({
       mode: 'move',
       index,
@@ -216,19 +293,22 @@ export function BenchConfigView({ benchConfig, isCommandPending, onSave }) {
     })
     // ensure pointer capture is on the preview container so pointermove events
     // are delivered to the container update handler
-    const container = event.currentTarget.closest?.('.bench-preview') || event.currentTarget
+    const container = event.currentTarget.closest?.('.bench-preview') ?? event.currentTarget
     try {
       container.setPointerCapture(event.pointerId)
-    } catch (e) {
+    } catch {
       // ignore if pointer capture isn't available
     }
   }
 
-  const startResizing = (event, index) => {
+  const startResizing = (event: PointerEvent<HTMLSpanElement>, index: number) => {
     event.stopPropagation()
     setSelectedZoneIndex(index)
     const point = eventToFramePoint(event)
     const zone = selectedBench.zones[index]
+    if (zone === undefined) {
+      return
+    }
     setDragState({
       mode: 'resize',
       index,
@@ -236,15 +316,15 @@ export function BenchConfigView({ benchConfig, isCommandPending, onSave }) {
       startY: point.y,
       original: { x: zone.x, y: zone.y, width: zone.width, height: zone.height },
     })
-    const container = event.currentTarget.closest?.('.bench-preview') || event.currentTarget
+    const container = event.currentTarget.closest?.('.bench-preview') ?? event.currentTarget
     try {
       container.setPointerCapture(event.pointerId)
-    } catch (e) {
+    } catch {
       // ignore if pointer capture isn't available
     }
   }
 
-  const updateDrag = (event) => {
+  const updateDrag = (event: PointerEvent<HTMLDivElement>) => {
     if (!dragState) {
       return
     }
@@ -256,17 +336,21 @@ export function BenchConfigView({ benchConfig, isCommandPending, onSave }) {
       const dy = point.y - dragState.startY
       if (Math.hypot(dx, dy) >= MIN_CREATE_DISTANCE) {
         // convert to an active create operation once the pointer has moved
-        setDragState((current) => ({ ...current, mode: 'create', currentX: point.x, currentY: point.y }))
+        setDragState((current) => current === null
+          ? current
+          : { ...current, mode: 'create', currentX: point.x, currentY: point.y })
       }
       return
     }
 
     if (dragState.mode === 'create') {
-      setDragState((current) => ({
-        ...current,
-        currentX: point.x,
-        currentY: point.y,
-      }))
+      setDragState((current) => current === null
+        ? current
+        : {
+            ...current,
+            currentX: point.x,
+            currentY: point.y,
+          })
       return
     }
 
@@ -292,7 +376,7 @@ export function BenchConfigView({ benchConfig, isCommandPending, onSave }) {
     }
   }
 
-  const finishDrag = (event) => {
+  const finishDrag = (event: PointerEvent<HTMLDivElement>) => {
     if (!dragState) {
       return
     }
@@ -325,6 +409,10 @@ export function BenchConfigView({ benchConfig, isCommandPending, onSave }) {
       storeSnapshot(dataUrl)
       setSnapshotImage(dataUrl)
     } catch (error) {
+      if (!(error instanceof Error)) {
+        setSnapshotError('Camera snapshot could not be loaded.')
+        return
+      }
       setSnapshotError(error.message)
     } finally {
       setIsSnapshotPending(false)
@@ -549,7 +637,7 @@ export function BenchConfigView({ benchConfig, isCommandPending, onSave }) {
   )
 }
 
-function loadStoredSnapshot() {
+function loadStoredSnapshot(): string {
   try {
     return window.localStorage.getItem(SNAPSHOT_STORAGE_KEY) ?? ''
   } catch {
@@ -557,7 +645,7 @@ function loadStoredSnapshot() {
   }
 }
 
-function storeSnapshot(dataUrl) {
+function storeSnapshot(dataUrl: string): void {
   try {
     window.localStorage.setItem(SNAPSHOT_STORAGE_KEY, dataUrl)
   } catch {
@@ -565,7 +653,7 @@ function storeSnapshot(dataUrl) {
   }
 }
 
-function blobToDataUrl(blob) {
+function blobToDataUrl(blob: Blob): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader()
     reader.onloadend = () => {
@@ -580,7 +668,7 @@ function blobToDataUrl(blob) {
   })
 }
 
-function normalizeBenchCollection(collection) {
+function normalizeBenchCollection(collection: LegacyBenchConfigResponse | BenchConfigResponse | null | undefined): BenchConfigResponse {
   if (collection?.benches?.length) {
     return {
       active_bench_id: collection.active_bench_id ?? collection.benches[0].id,
@@ -588,7 +676,7 @@ function normalizeBenchCollection(collection) {
     }
   }
 
-  if (collection?.zones) {
+  if (isLegacyBenchCollection(collection)) {
     const bench = normalizeBench({
       id: 'default',
       name: 'Bancada 1',
@@ -611,10 +699,10 @@ function normalizeBenchCollection(collection) {
   return { active_bench_id: bench.id, benches: [bench] }
 }
 
-function normalizeBench(bench) {
+function normalizeBench(bench: Partial<BenchConfig>): BenchConfig {
   return {
-    id: bench.id,
-    name: bench.name,
+    id: bench.id ?? createBenchId(),
+    name: bench.name ?? 'Bancada 1',
     zones: bench.zones ?? [],
     cycle_sequence: bench.cycle_sequence ?? [],
     start_zone: bench.start_zone ?? bench.zones?.[0]?.name ?? null,
@@ -622,7 +710,13 @@ function normalizeBench(bench) {
   }
 }
 
-function duplicateBench(bench, index) {
+function isLegacyBenchCollection(
+  collection: LegacyBenchConfigResponse | BenchConfigResponse | null | undefined,
+): collection is LegacyBenchConfigResponse & { zones: BenchZone[] } {
+  return Array.isArray((collection as LegacyBenchConfigResponse | null | undefined)?.zones)
+}
+
+function duplicateBench(bench: BenchConfig, index: number): BenchConfig {
   return {
     ...bench,
     id: createBenchId(),
@@ -632,14 +726,14 @@ function duplicateBench(bench, index) {
   }
 }
 
-function createBenchId() {
+function createBenchId(): string {
   if (window.crypto?.randomUUID) {
     return window.crypto.randomUUID()
   }
   return `bench-${Date.now()}`
 }
 
-function createZoneModel(index, box) {
+function createZoneModel(index: number, box: Box): BenchZone {
   return {
     name: `Zona ${index}`,
     ...box,
@@ -647,7 +741,7 @@ function createZoneModel(index, box) {
   }
 }
 
-function eventToFramePoint(event) {
+function eventToFramePoint(event: PointerEvent<HTMLElement>): Point {
   const rect = event.currentTarget.getBoundingClientRect()
   return {
     x: Math.round(((event.clientX - rect.left) / rect.width) * FRAME_WIDTH),
@@ -655,7 +749,7 @@ function eventToFramePoint(event) {
   }
 }
 
-function boxFromPoints(startX, startY, endX, endY) {
+function boxFromPoints(startX: number, startY: number, endX: number, endY: number): Box {
   return {
     x: Math.min(startX, endX),
     y: Math.min(startY, endY),
@@ -664,7 +758,7 @@ function boxFromPoints(startX, startY, endX, endY) {
   }
 }
 
-function clampBox(box) {
+function clampBox(box: Box): Box {
   const width = Math.max(1, Math.min(Math.round(box.width), FRAME_WIDTH))
   const height = Math.max(1, Math.min(Math.round(box.height), FRAME_HEIGHT))
   const x = Math.max(0, Math.min(Math.round(box.x), FRAME_WIDTH - width))
@@ -672,11 +766,22 @@ function clampBox(box) {
   return { x, y, width, height }
 }
 
-function boxStyle(box) {
+function boxStyle(box: Box): CSSProperties {
   return {
     left: `${(box.x / FRAME_WIDTH) * 100}%`,
     top: `${(box.y / FRAME_HEIGHT) * 100}%`,
     width: `${(box.width / FRAME_WIDTH) * 100}%`,
     height: `${(box.height / FRAME_HEIGHT) * 100}%`,
+  }
+}
+
+function createEmptyBench(): BenchConfig {
+  return {
+    id: 'default',
+    name: 'Bancada 1',
+    zones: [],
+    cycle_sequence: [],
+    start_zone: null,
+    end_zone: null,
   }
 }

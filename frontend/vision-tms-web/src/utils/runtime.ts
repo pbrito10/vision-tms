@@ -1,4 +1,6 @@
-export function stateLabel(state) {
+import type { RuntimeState } from '../types'
+
+export function stateLabel(state: RuntimeState | string): string {
   return {
     idle: 'IDLE',
     running: 'RUNNING',
@@ -6,4 +8,3 @@ export function stateLabel(state) {
     error: 'ERROR',
   }[state] ?? 'UNKNOWN'
 }
-

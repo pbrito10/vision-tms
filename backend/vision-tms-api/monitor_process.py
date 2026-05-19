@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import logging
+
 # Pipeline principal: classifica zonas, atualiza a state machine,
 # calcula métricas e escreve outputs em tempo real.
 #
@@ -7,8 +9,15 @@ from __future__ import annotations
 # ficam dentro das funções/métodos para evitar carregar dependências pesadas
 # (OpenCV, MediaPipe) no processo pai sem necessidade.
 
+LOGGER = logging.getLogger(__name__)
+
+
 def run(detection_queue, stop_event, config, roi_path):
-    _MonitorSession(config, roi_path).execute(detection_queue, stop_event)
+    try:
+        _MonitorSession(config, roi_path).execute(detection_queue, stop_event)
+    except Exception:
+        LOGGER.exception("Monitor process stopped unexpectedly")
+        raise
 
 
 class _ZoneTransitionTracker:
@@ -142,7 +151,10 @@ class _MonitorSession:
                 except queue.Empty:
                     continue
 
-                self._process_frame(frame_rgb, maos, debug_logger)
+                try:
+                    self._process_frame(frame_rgb, maos, debug_logger)
+                except Exception:
+                    LOGGER.exception("Failed to process monitor frame %s", self._frame_idx + 1)
         finally:
             self._finalise()
 
@@ -184,9 +196,12 @@ class _MonitorSession:
             "cycle_number": self._cycle_tracker.current_cycle_number(),
         }
 
-        temp_path = self._state_output_path.with_suffix(".tmp")
-        temp_path.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
-        temp_path.replace(self._state_output_path)
+        try:
+            temp_path = self._state_output_path.with_suffix(".tmp")
+            temp_path.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
+            temp_path.replace(self._state_output_path)
+        except OSError:
+            LOGGER.exception("Failed to publish program state to %s", self._state_output_path)
 
     def _current_zone(self, detected_zones, expected_sequence, completed_steps):
         if not detected_zones:
@@ -221,30 +236,34 @@ class _MonitorSession:
         import cv2
         from src.video import frame_annotator
 
-        frame_bgr = cv2.cvtColor(frame_rgb, cv2.COLOR_RGB2BGR)
-        frame_annotator.draw_detections(frame_bgr, maos)
-        frame_annotator.draw_rois(frame_bgr, self._rois)
+        try:
+            frame_bgr = cv2.cvtColor(frame_rgb, cv2.COLOR_RGB2BGR)
+            frame_annotator.draw_detections(frame_bgr, maos)
+            frame_annotator.draw_rois(frame_bgr, self._rois)
 
-        ok, encoded = cv2.imencode(".jpg", frame_bgr, [cv2.IMWRITE_JPEG_QUALITY, 82])
-        if not ok:
-            return
+            ok, encoded = cv2.imencode(".jpg", frame_bgr, [cv2.IMWRITE_JPEG_QUALITY, 82])
+            if not ok:
+                LOGGER.warning("Failed to encode program frame as JPEG")
+                return
 
-        temp_path = self._frame_output_path.with_suffix(".tmp")
-        temp_path.write_bytes(encoded.tobytes())
-        temp_path.replace(self._frame_output_path)
+            temp_path = self._frame_output_path.with_suffix(".tmp")
+            temp_path.write_bytes(encoded.tobytes())
+            temp_path.replace(self._frame_output_path)
+        except Exception:
+            LOGGER.exception("Failed to publish program frame to %s", self._frame_output_path)
 
     def _handle_task_event(self, task_event, debug_logger) -> None:
         self._log_task(task_event, debug_logger)
 
         cycle_result = self._cycle_tracker.record(task_event)
         self._metrics.record(task_event)
-        self._excel_exporter.add_event(task_event)
-        self._influx_writer.write_task_event(task_event)
+        self._safe_output("append task event to Excel output", self._excel_exporter.add_event, task_event)
+        self._safe_output("write task event to InfluxDB", self._influx_writer.write_task_event, task_event)
 
         if cycle_result is not None:
             self._metrics.record_cycle(cycle_result)
-            self._excel_exporter.add_cycle_result(cycle_result)
-            self._influx_writer.write_cycle_result(cycle_result)
+            self._safe_output("append cycle result to Excel output", self._excel_exporter.add_cycle_result, cycle_result)
+            self._safe_output("write cycle result to InfluxDB", self._influx_writer.write_cycle_result, cycle_result)
             debug_logger.log_cycle_complete(cycle_result)
 
     def _log_task(self, task_event, debug_logger) -> None:
@@ -256,13 +275,19 @@ class _MonitorSession:
     def _maybe_write_live_metrics(self, now) -> None:
         if now - self._last_metrics_write >= self._refresh_interval:
             snapshot = self._metrics.snapshot()
-            self._influx_writer.write(snapshot)
+            self._safe_output("write live metrics to InfluxDB", self._influx_writer.write, snapshot)
             self._last_metrics_write = now
 
     def _finalise(self) -> None:
         snapshot = self._metrics.snapshot()
+        self._safe_output("write final metrics to InfluxDB", self._influx_writer.write, snapshot)
+        self._safe_output("write final Excel output", self._excel_exporter.write, snapshot)
+        self._safe_output("close InfluxDB writer", self._influx_writer.close)
+
+    def _safe_output(self, action: str, callback, *args) -> bool:
         try:
-            self._influx_writer.write(snapshot)
-            self._excel_exporter.write(snapshot)
-        finally:
-            self._influx_writer.close()
+            callback(*args)
+        except Exception:
+            LOGGER.exception("Failed to %s", action)
+            return False
+        return True

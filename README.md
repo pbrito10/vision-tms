@@ -9,6 +9,11 @@ O projeto está dividido em quatro partes:
 - `grafana/provisioning`: datasource e dashboard do Grafana.
 - `docker-compose.yml`: stack local com backend, frontend, InfluxDB e Grafana.
 
+Documentação complementar:
+
+- `DEVELOPMENT.md`: ciclo de desenvolvimento, validação e troubleshooting local.
+- `ARCHITECTURE.md`: fluxo da aplicação, subprocessos e divisão de responsabilidades.
+
 ## Serviços
 
 | Serviço | URL | Função |
@@ -71,7 +76,9 @@ Ficheiros principais:
 
 - `api/main.py`: criação da app FastAPI.
 - `api/routes.py`: rotas HTTP.
-- `api/services.py`: casos de uso da aplicação.
+- `api/system_service.py`: casos de uso da aplicação.
+- `api/pipeline_process_manager.py`: gestão dos subprocessos.
+- `api/bench_repository.py`, `api/config_repository.py`, `api/roi_service.py`: persistência e validação de configuração.
 - `process_entrypoints.py`: entrypoints dos subprocessos.
 - `monitor_process.py`: tracking, métricas, Excel e publicação para InfluxDB.
 
@@ -89,6 +96,7 @@ O frontend está em `frontend/vision-tms-web` e é montado no container em `/app
 Validação local:
 
 ```bash
+npm --prefix frontend/vision-tms-web run typecheck
 npm --prefix frontend/vision-tms-web run lint
 npm --prefix frontend/vision-tms-web run build
 ```
@@ -99,6 +107,7 @@ Antes de enviar alterações:
 
 ```bash
 PYTHONPYCACHEPREFIX=/tmp/vision-tms-pycache python3 -m compileall -q backend/vision-tms-api/api backend/vision-tms-api/src backend/vision-tms-api/*.py
+npm --prefix frontend/vision-tms-web run typecheck
 npm --prefix frontend/vision-tms-web run lint
 npm --prefix frontend/vision-tms-web run build
 docker --context default compose config

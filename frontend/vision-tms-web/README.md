@@ -1,6 +1,14 @@
 # Vision TMS Frontend
 
-Frontend React com Vite, em JavaScript.
+Frontend React com Vite, em TypeScript.
+
+Validação:
+
+```bash
+npm run typecheck
+npm run lint
+npm run build
+```
 
 Views ativas:
 

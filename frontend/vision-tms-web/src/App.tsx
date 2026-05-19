@@ -1,19 +1,21 @@
 import { useState } from 'react'
+import type { ReactNode } from 'react'
 import { Layout } from './components/Layout'
 import { useSystemData } from './hooks/useSystemData'
 import { BenchConfigView } from './views/BenchConfigView'
 import { CameraTestView } from './views/CameraTestView'
 import { RunProgramView } from './views/RunProgramView'
+import type { AppView } from './types'
 import './App.css'
 
 function App() {
-  const [activeView, setActiveView] = useState('run')
+  const [activeView, setActiveView] = useState<AppView>('run')
   const [selectedBenchId, setSelectedBenchId] = useState('')
   const system = useSystemData()
   const effectiveBenchId =
     selectedBenchId || system.benchConfig.active_bench_id || system.benchConfig.benches[0]?.id || ''
 
-  const currentView = {
+  const currentView: Record<AppView, ReactNode> = {
     run: (
       <RunProgramView
         isCommandPending={system.isCommandPending}
@@ -44,7 +46,7 @@ function App() {
         onSave={system.saveBenchConfig}
       />
     ),
-  }[activeView]
+  }
 
   return (
     <Layout
@@ -55,7 +57,7 @@ function App() {
       settings={system.settings}
       status={system.status}
     >
-      {currentView}
+      {currentView[activeView]}
     </Layout>
   )
 }

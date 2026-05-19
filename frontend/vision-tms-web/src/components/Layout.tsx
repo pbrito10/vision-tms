@@ -1,10 +1,22 @@
+import type { ReactNode } from 'react'
+import type { AppView, RuntimeStatus, SettingsResponse } from '../types'
 import { stateLabel } from '../utils/runtime'
 
-const navItems = [
+const navItems: Array<{ id: AppView; label: string; icon: string }> = [
   { id: 'run', label: 'Run Program', icon: 'R' },
   { id: 'camera', label: 'Camera Test', icon: 'C' },
   { id: 'bench', label: 'Bench Config', icon: 'B' },
 ]
+
+interface LayoutProps {
+  activeView: AppView
+  children: ReactNode
+  error: string | null
+  isLoading: boolean
+  onNavigate: (view: AppView) => void
+  settings: SettingsResponse
+  status: RuntimeStatus
+}
 
 export function Layout({
   activeView,
@@ -14,7 +26,7 @@ export function Layout({
   onNavigate,
   settings,
   status,
-}) {
+}: LayoutProps) {
   const activeLabel = navItems.find((item) => item.id === activeView)?.label ?? 'Run Program'
 
   return (

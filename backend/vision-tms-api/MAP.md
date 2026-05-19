@@ -7,7 +7,12 @@ O fluxo antigo de menu Python/Streamlit foi removido.
 
 - `api/main.py`: cria a aplicação FastAPI.
 - `api/routes.py`: expõe saúde, estado, câmara, programa e configuração de bancadas.
-- `api/services.py`: casos de uso da aplicação, persistência de YAML/JSON e gestão dos processos.
+- `api/system_service.py`: casos de uso da aplicação consumidos pelas rotas.
+- `api/services.py`: montagem das instâncias globais e compatibilidade de imports.
+- `api/config_repository.py`: persistência de `settings.yaml`.
+- `api/bench_repository.py`: persistência e ativação de bancadas.
+- `api/roi_service.py`: persistência e validação de ROIs.
+- `api/pipeline_process_manager.py`: gestão dos subprocessos.
 - `process_entrypoints.py`: entrypoints limpos para os subprocessos do pipeline.
 
 ## Pipeline de visão

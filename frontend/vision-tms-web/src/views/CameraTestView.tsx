@@ -1,6 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { apiClient } from '../api/client'
 import { InspectionPreview } from '../components/ui'
+import type { RuntimeStatus, SettingsResponse } from '../types'
+
+interface CameraTestViewProps {
+  isCommandPending: boolean
+  onStartCameraTest: () => void
+  onStopCameraTest: () => void
+  settings: SettingsResponse
+  status: RuntimeStatus
+}
 
 export function CameraTestView({
   isCommandPending,
@@ -8,7 +17,7 @@ export function CameraTestView({
   onStopCameraTest,
   settings,
   status,
-}) {
+}: CameraTestViewProps) {
   const isCameraTestRunning = status.mode === 'camera_test' && status.run_state === 'running'
 
   return (
@@ -52,8 +61,8 @@ export function CameraTestView({
 }
 
 function CameraStreamImage() {
-  const [streamRevision, setStreamRevision] = useState(Math.random())
-  const reconnectTimeoutRef = useRef(null)
+  const [streamRevision, setStreamRevision] = useState(0)
+  const reconnectTimeoutRef = useRef<number | null>(null)
 
   const reconnect = useCallback(() => {
     if (reconnectTimeoutRef.current !== null) {
@@ -62,7 +71,7 @@ function CameraStreamImage() {
 
     reconnectTimeoutRef.current = window.setTimeout(() => {
       reconnectTimeoutRef.current = null
-      setStreamRevision(Math.random())
+      setStreamRevision((revision) => revision + 1)
     }, 1000)
   }, [])
 

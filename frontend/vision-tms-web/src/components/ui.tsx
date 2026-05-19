@@ -1,4 +1,9 @@
-export function InspectionPreview({ compact = false, calibration = false }) {
+interface InspectionPreviewProps {
+  compact?: boolean
+  calibration?: boolean
+}
+
+export function InspectionPreview({ compact = false, calibration = false }: InspectionPreviewProps) {
   return (
     <div className={`inspection-preview ${compact ? 'compact' : ''} ${calibration ? 'calibration' : ''}`}>
       <div className="scan-grid" aria-hidden="true"></div>
