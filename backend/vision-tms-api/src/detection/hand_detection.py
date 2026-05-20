@@ -38,8 +38,8 @@ class HandDetection:
         """Landmark 0 — base do pulso.
 
         Usado como ponto de referência para:
-          - calcular velocidade de movimento (StillnessDwellStrategy)
           - ancorar o label de identificação da mão (frame_annotator)
-        Não é usado para determinar em que zona a mão está — ver finger_mcp_centroid().
+        Não é usado para determinar em que zona a mão está nem para o dwell
+        de stillness — ver finger_mcp_centroid().
         """
         return self.keypoints.wrist()

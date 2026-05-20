@@ -23,9 +23,9 @@ O fluxo antigo de menu Python/Streamlit foi removido.
 
 ## Configuração
 
-- `config/settings.yaml`: parâmetros técnicos editados no código/YAML.
-- `config/benches.json`: bancadas guardadas pelo frontend.
-- `config/rois.json`: ROIs ativas geradas a partir da bancada escolhida.
+- `config/settings.yaml`: parâmetros técnicos versionados.
+- `config/benches.json`: bancadas locais guardadas pelo frontend e ignoradas pelo Git.
+- `config/rois.json`: ROIs locais geradas a partir da bancada escolhida e ignoradas pelo Git.
 
 ## Saídas
 

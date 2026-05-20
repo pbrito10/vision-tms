@@ -31,13 +31,13 @@ export const emptySettings: SettingsResponse = {
   },
   detection: {
     max_num_hands: 2,
-    min_detection_confidence: 0.7,
-    min_tracking_confidence: 0.7,
+    min_detection_confidence: 0.8,
+    min_tracking_confidence: 0.8,
   },
   tracking: {
-    dwell_time_seconds: 0.5,
+    dwell_time_seconds: 0.3,
     task_timeout_seconds: 30,
-    stillness_threshold_px: 5,
+    stillness_threshold_px: 8,
     zones: [],
     two_hands_zones: [],
     cycle_zone_order: [],

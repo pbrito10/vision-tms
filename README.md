@@ -45,6 +45,17 @@ Se a câmara não estiver em `/dev/video0`, altera:
 - `docker-compose.yml`, em `services.backend.devices`
 - `backend/vision-tms-api/config/settings.yaml`, em `camera.index`
 
+## Configuração local
+
+O ficheiro `backend/vision-tms-api/config/settings.yaml` é versionado.
+
+As configurações locais da bancada ficam fora do Git para evitar conflitos entre PCs:
+
+- `backend/vision-tms-api/config/benches.json`
+- `backend/vision-tms-api/config/rois.json`
+
+Se estes ficheiros locais não existirem, a interface mostra um aviso. Ao guardar uma bancada, o backend cria os ficheiros locais.
+
 ## Como Correr
 
 Na raiz do repositório:
@@ -84,6 +95,8 @@ Ficheiros principais:
 
 Ficheiros gerados em runtime e ignorados pelo Git:
 
+- `backend/vision-tms-api/config/benches.json`
+- `backend/vision-tms-api/config/rois.json`
 - `backend/vision-tms-api/output/`
 - `backend/vision-tms-api/dashboard/data/`
 - `backend/vision-tms-api/core*`

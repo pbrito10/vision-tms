@@ -343,6 +343,19 @@ button:disabled:hover {
   font-weight: 700;
 }
 
+.warning-banner {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  margin-bottom: 16px;
+  padding: 12px 14px;
+  border: 1px solid #e3c37b;
+  border-radius: 8px;
+  color: #5f4100;
+  background: #fff8e7;
+  font-weight: 700;
+}
+
 .inline-error {
   margin: -6px 0 12px;
   padding: 10px 12px;

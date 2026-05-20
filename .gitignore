@@ -44,6 +44,8 @@ backend/vision-tms-api/.venv/
 backend/vision-tms-api/venv/
 
 # Backend runtime output
+backend/vision-tms-api/config/benches.json
+backend/vision-tms-api/config/rois.json
 backend/vision-tms-api/core
 backend/vision-tms-api/core.*
 backend/vision-tms-api/output/

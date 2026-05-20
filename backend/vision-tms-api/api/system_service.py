@@ -130,7 +130,12 @@ class SystemService:
 
     def _checks(self, state: RuntimeState) -> list[SystemCheck]:
         config = self._config_repository.load()
+        bench_config = self._bench_repository.load()
         roi_errors = self._roi_service.validate(config)
+        bench_ready = bool(bench_config.benches)
+        roi_value = "Ready" if not roi_errors else roi_errors[0]
+        if len(roi_errors) > 1:
+            roi_value = f"{len(roi_errors)} issue(s)"
 
         return [
             SystemCheck(
@@ -144,8 +149,13 @@ class SystemService:
                 status=CheckStatus.OK if state != RuntimeState.ERROR else CheckStatus.ERROR,
             ),
             SystemCheck(
+                name="Benches",
+                value="Ready" if bench_ready else "No local bench configuration",
+                status=CheckStatus.OK if bench_ready else CheckStatus.WARNING,
+            ),
+            SystemCheck(
                 name="ROIs",
-                value="Ready" if not roi_errors else f"{len(roi_errors)} issue(s)",
+                value=roi_value,
                 status=CheckStatus.OK if not roi_errors else CheckStatus.WARNING,
             ),
         ]

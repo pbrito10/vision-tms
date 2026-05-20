@@ -35,23 +35,17 @@ class BenchRepository:
     def load(self) -> BenchConfigResponse:
         with self._lock:
             if not self._path.exists():
-                collection = self._migration_collection()
-                self._write(collection)
-                return collection
+                return BenchConfigResponse()
 
             try:
                 raw = json.loads(self._path.read_text(encoding="utf-8"))
             except (json.JSONDecodeError, OSError):
-                collection = self._migration_collection()
-                self._write(collection)
-                return collection
+                return BenchConfigResponse()
 
             try:
                 return self._clean_collection(raw)
             except (TypeError, ValueError):
-                collection = self._migration_collection()
-                self._write(collection)
-                return collection
+                return BenchConfigResponse()
 
     def save(self, update: BenchConfigResponse) -> BenchConfigResponse:
         with self._lock:
@@ -63,6 +57,8 @@ class BenchRepository:
     def activate(self, bench_id: str | None) -> BenchConfig:
         with self._lock:
             collection = self.load()
+            if not collection.benches:
+                raise ValueError("No bench configuration is saved yet.")
             bench = self._bench_by_id(collection, bench_id or collection.active_bench_id)
             collection.active_bench_id = bench.id
             self._write(collection)

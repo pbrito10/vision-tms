@@ -66,8 +66,8 @@ class CameraSettings(BaseModel):
 
 class DetectionSettings(BaseModel):
     max_num_hands: int = 2
-    min_detection_confidence: float = 0.7
-    min_tracking_confidence: float = 0.7
+    min_detection_confidence: float = 0.8
+    min_tracking_confidence: float = 0.8
 
 
 class CycleRepeatRule(BaseModel):
@@ -77,9 +77,9 @@ class CycleRepeatRule(BaseModel):
 
 
 class TrackingSettings(BaseModel):
-    dwell_time_seconds: float = 0.5
+    dwell_time_seconds: float = 0.3
     task_timeout_seconds: float = 30.0
-    stillness_threshold_px: float = 5.0
+    stillness_threshold_px: float = 8.0
     zones: list[str] = Field(default_factory=list)
     two_hands_zones: list[str] = Field(default_factory=list)
     two_hands_missing_tolerance_seconds: float = 0.0

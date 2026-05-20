@@ -24,4 +24,5 @@ class ConfigRepository:
     def save(self, config: dict[str, Any]) -> None:
         with self._lock:
             text = yaml.safe_dump(config, sort_keys=False, allow_unicode=True)
+            self._path.parent.mkdir(parents=True, exist_ok=True)
             self._path.write_text(text, encoding="utf-8")

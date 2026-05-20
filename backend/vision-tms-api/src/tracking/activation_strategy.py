@@ -39,6 +39,10 @@ class StillnessDwellStrategy(ActivationStrategy):
     (mão para brevemente). Sem este filtro, qualquer trânsito lento pela
     zona seria registado como tarefa.
 
+    Usa o mesmo ponto de referência que a classificação de zona: o centróide
+    dos MCP dos dedos. Assim o dwell é medido no ponto que determinou que a
+    mão estava dentro da ROI, em vez de depender do pulso.
+
     O threshold em px/frame depende da resolução e da distância câmara-bancada.
     A 640x480, valores entre 3 e 8 px/frame funcionam bem na prática.
     """
@@ -51,5 +55,7 @@ class StillnessDwellStrategy(ActivationStrategy):
             # Primeiro frame nesta zona — sem referência anterior para calcular velocidade
             return False
 
-        velocity = detection.wrist().position.distance_to(previous.wrist().position)
+        current_point = detection.keypoints.finger_mcp_centroid()
+        previous_point = previous.keypoints.finger_mcp_centroid()
+        velocity = current_point.distance_to(previous_point)
         return velocity < self._threshold

@@ -28,6 +28,7 @@ export function Layout({
   status,
 }: LayoutProps) {
   const activeLabel = navItems.find((item) => item.id === activeView)?.label ?? 'Run Program'
+  const systemAlerts = status.system_checks.filter((check) => check.status !== 'ok')
 
   return (
     <div className="app-shell">
@@ -84,6 +85,15 @@ export function Layout({
         </header>
 
         {error && <div className="error-banner">{error}</div>}
+        {systemAlerts.length > 0 && (
+          <div className="warning-banner">
+            {systemAlerts.map((check) => (
+              <span key={check.name}>
+                {check.name}: {check.value}
+              </span>
+            ))}
+          </div>
+        )}
         {children}
       </main>
     </div>
