@@ -16,7 +16,7 @@ class TaskAnalysisEvent:
 class TaskLabeler:
     """Atribui nomes de analise sem alterar a logica fisica de tracking."""
 
-    def __init__(self, assembly_zone: str, labels_by_previous_zone: dict[str, str]) -> None:
+    def __init__(self, assembly_zone: str | None, labels_by_previous_zone: dict[str, str]) -> None:
         self._assembly_zone = assembly_zone
         self._labels_by_previous_zone = labels_by_previous_zone
         self._current_cycle_number: int | None = None
@@ -42,7 +42,7 @@ class TaskLabeler:
         self._previous_piece_zone = None
 
     def _label_for(self, event: TaskEvent) -> tuple[str, bool]:
-        if event.zone_name != self._assembly_zone:
+        if self._assembly_zone is None or event.zone_name != self._assembly_zone:
             return event.zone_name, False
 
         if self._previous_piece_zone is None:

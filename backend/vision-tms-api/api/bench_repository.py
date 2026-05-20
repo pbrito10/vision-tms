@@ -82,9 +82,43 @@ class BenchRepository:
         tracking["cycle_repeat_rules"] = [model_dump(rule) for rule in bench.cycle_repeat_rules]
         tracking["start_zone"] = bench.start_zone
         tracking["exit_zone"] = bench.end_zone
+        self._apply_assembly_task_labels(tracking, zones, bench.end_zone)
 
         self._roi_service.save_zones(zones)
         self._config_repository.save(config)
+
+    def _apply_assembly_task_labels(
+        self,
+        tracking: dict[str, Any],
+        zones: list[BenchZone],
+        exit_zone: str | None,
+    ) -> None:
+        zone_names = [zone.name for zone in zones]
+        two_hands_zone_names = [zone.name for zone in zones if zone.two_hands]
+
+        assembly_zone = tracking.get("assembly_zone")
+        if assembly_zone not in zone_names:
+            assembly_zone = two_hands_zone_names[0] if two_hands_zone_names else None
+
+        tracking["assembly_zone"] = assembly_zone
+        if assembly_zone is None:
+            tracking["assembly_task_labels"] = {}
+            return
+
+        existing_labels = tracking.get("assembly_task_labels", {})
+        if not isinstance(existing_labels, dict):
+            existing_labels = {}
+
+        ignored_zones = set(two_hands_zone_names)
+        ignored_zones.add(assembly_zone)
+        if exit_zone is not None:
+            ignored_zones.add(exit_zone)
+
+        tracking["assembly_task_labels"] = {
+            zone_name: str(existing_labels.get(zone_name) or f"{assembly_zone} {zone_name}")
+            for zone_name in zone_names
+            if zone_name not in ignored_zones
+        }
 
     def _scale_legacy_zones_if_needed(
         self,
