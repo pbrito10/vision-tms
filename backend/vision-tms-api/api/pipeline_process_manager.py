@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from copy import deepcopy
+from datetime import datetime
 import threading
 import time
 from multiprocessing import get_context
@@ -29,6 +31,7 @@ class PipelineProcessManager:
 
         with self._lock:
             self._ensure_idle()
+            config = self._runtime_config(config)
             frame_queue = self._ctx.Queue(maxsize=2)
             detection_queue = self._ctx.Queue(maxsize=5)
             stop_event = self._ctx.Event()
@@ -63,6 +66,7 @@ class PipelineProcessManager:
 
         with self._lock:
             self._ensure_idle()
+            config = self._runtime_config(config)
             frame_queue = self._ctx.Queue(maxsize=2)
             detection_queue = self._ctx.Queue(maxsize=5)
             stop_event = self._ctx.Event()
@@ -151,6 +155,14 @@ class PipelineProcessManager:
         self._refresh_state()
         if self._state != RuntimeState.IDLE:
             raise RuntimeError("Another runtime mode is already active.")
+
+    def _runtime_config(self, config: dict[str, Any]) -> dict[str, Any]:
+        runtime_config = deepcopy(config)
+        session_started_at = datetime.now()
+        runtime_config["_runtime"] = {
+            "session_started_at": session_started_at.isoformat(timespec="microseconds"),
+        }
+        return runtime_config
 
     def _refresh_state(self) -> None:
         if self._state != RuntimeState.RUNNING:

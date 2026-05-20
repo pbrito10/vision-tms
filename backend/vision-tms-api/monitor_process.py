@@ -12,6 +12,16 @@ import logging
 LOGGER = logging.getLogger(__name__)
 
 
+def _session_start_from_config(config, datetime_cls):
+    raw_value = config.get("_runtime", {}).get("session_started_at")
+    if isinstance(raw_value, str):
+        try:
+            return datetime_cls.fromisoformat(raw_value)
+        except ValueError:
+            LOGGER.warning("Invalid runtime session_started_at: %s", raw_value)
+    return datetime_cls.now()
+
+
 def run(detection_queue, stop_event, config, roi_path):
     try:
         _MonitorSession(config, roi_path).execute(detection_queue, stop_event)
@@ -176,7 +186,7 @@ class _MonitorSession:
         from src.video.live_frame import JpegFramePublisher
 
         self._config        = config
-        self._session_start = datetime.now()
+        self._session_start = _session_start_from_config(config, datetime)
         self._frame_idx     = 0
         self._last_metrics_write = datetime.min
         self._refresh_interval   = timedelta(seconds=config["dashboard"]["refresh_seconds"])

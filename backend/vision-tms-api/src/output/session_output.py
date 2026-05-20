@@ -8,6 +8,17 @@ from typing import Any
 _DEFAULT_SESSIONS_SUBDIR = "sessions"
 
 
+def session_stamp(session_start: datetime) -> str:
+    return session_start.strftime("%Y-%m-%d_%Hh%Mm%Ss_%f")
+
+
+def output_stamp(output_dir: Path, session_start: datetime) -> str:
+    date_prefix = session_start.strftime("%Y-%m-%d_")
+    if output_dir.name.startswith(date_prefix):
+        return output_dir.name
+    return session_stamp(session_start)
+
+
 @dataclass(frozen=True)
 class SessionOutputLayout:
     """Caminhos de output pertencentes a uma unica sessao."""
@@ -31,7 +42,7 @@ class SessionOutputLayout:
 
     @property
     def video_path(self) -> Path:
-        stamp = self.session_start.strftime("%Y-%m-%d_%Hh%M")
+        stamp = output_stamp(self.session_dir, self.session_start)
         return self.video_dir / f"sessao_{stamp}_annotated.mp4"
 
     def ensure_subdirs(self) -> None:
@@ -54,7 +65,7 @@ def create_session_output_layout(
 ) -> SessionOutputLayout:
     root_dir = output_root_from_config(config)
     sessions_dir = sessions_dir_from_config(config)
-    base_name = session_start.strftime("%Y-%m-%d_%Hh%Mm%Ss")
+    base_name = session_stamp(session_start)
     session_dir = _create_unique_session_dir(sessions_dir / base_name)
 
     layout = SessionOutputLayout(

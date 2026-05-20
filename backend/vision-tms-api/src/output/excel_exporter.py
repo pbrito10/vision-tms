@@ -9,6 +9,7 @@ from openpyxl.styles import Font, PatternFill
 
 from src.output.metrics_snapshot import MetricsSnapshot
 from src.output.output_interface import OutputInterface
+from src.output.session_output import output_stamp
 from src.tracking.cycle_result import CycleResult
 from src.tracking.order_matching import diagnose_order
 from src.tracking.task_event import TaskEvent
@@ -62,7 +63,7 @@ class ExcelExporter(OutputInterface):
 
     def write(self, snapshot: MetricsSnapshot) -> None:
         """Gera o ficheiro Excel com todas as folhas."""
-        filename = f"sessao_{self._session_start.strftime('%Y-%m-%d_%Hh%M')}.xlsx"
+        filename = f"sessao_{output_stamp(self._output_dir, self._session_start)}.xlsx"
         path = self._output_dir / filename
 
         with pd.ExcelWriter(path, engine="openpyxl") as writer:

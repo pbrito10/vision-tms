@@ -6,6 +6,7 @@ from pathlib import Path
 from types import TracebackType
 
 from src.detection.hand_detection import HandDetection
+from src.output.session_output import output_stamp
 from src.tracking.cycle_result import CycleResult
 from src.tracking.task_event import TaskEvent
 
@@ -32,7 +33,7 @@ class DebugLogger:
     """CSV em tempo real com os eventos do pipeline."""
 
     def __init__(self, output_dir: Path, session_start: datetime) -> None:
-        filename = f"debug_{session_start.strftime('%Y-%m-%d_%Hh%M')}.csv"
+        filename = f"debug_{output_stamp(output_dir, session_start)}.csv"
 
         output_dir.mkdir(parents=True, exist_ok=True)
         self._path = output_dir / filename
