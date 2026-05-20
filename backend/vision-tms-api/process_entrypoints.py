@@ -26,3 +26,12 @@ def run_pipeline(detection_queue, stop_event, config, roi_path):
 
     configure_logging()
     monitor_process.run(detection_queue, stop_event, config, roi_path)
+
+
+def run_preview_pipeline(detection_queue, stop_event, config, roi_path):
+    """Child-process entrypoint for camera-test preview publishing."""
+    from src.shared.logging_config import configure_logging
+    import preview_process
+
+    configure_logging()
+    preview_process.run(detection_queue, stop_event, config, roi_path)

@@ -7,8 +7,8 @@ from fastapi import APIRouter, HTTPException
 from fastapi import Request
 from fastapi.responses import Response, StreamingResponse
 
-from api.camera_stream import CameraSnapshotService, CameraStreamService
-from api.program_stream import ProgramFrameStreamService
+from api.camera_stream import CameraSnapshotService
+from api.program_stream import PublishedFrameStreamService
 from api.schemas import (
     BenchConfigResponse,
     CommandResponse,
@@ -22,9 +22,8 @@ from api.schemas import (
 from api.services import config_repository, system_service
 
 router = APIRouter(prefix="/api")
-camera_stream_service = CameraStreamService(config_repository)
 camera_snapshot_service = CameraSnapshotService(config_repository)
-program_stream_service = ProgramFrameStreamService(config_repository)
+frame_stream_service = PublishedFrameStreamService(config_repository)
 
 
 @router.get("/health", response_model=HealthResponse)
@@ -45,7 +44,6 @@ def programs() -> list[Program]:
 @router.post("/program/start", response_model=CommandResponse)
 def start_program(request: StartProgramRequest) -> CommandResponse:
     try:
-        camera_stream_service.reset()
         status = system_service.start_program(request.program_id, request.bench_id)
     except (RuntimeError, ValueError) as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
@@ -60,7 +58,6 @@ def stop_program() -> CommandResponse:
 @router.post("/camera-test/start", response_model=CommandResponse)
 def start_camera_test() -> CommandResponse:
     try:
-        camera_stream_service.reset()
         status = system_service.start_camera_test()
     except RuntimeError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
@@ -69,18 +66,17 @@ def start_camera_test() -> CommandResponse:
 
 @router.post("/camera-test/stop", response_model=CommandResponse)
 def stop_camera_test() -> CommandResponse:
-    camera_stream_service.reset()
     return CommandResponse(accepted=True, status=system_service.stop_camera_test())
 
 
 @router.get("/camera/stream")
 def camera_stream() -> StreamingResponse:
     status = system_service.status()
-    if status.mode.value == "program":
-        raise HTTPException(status_code=409, detail="Camera is being used by the running program.")
+    if status.mode.value != "camera_test":
+        raise HTTPException(status_code=409, detail="Camera test is not running.")
 
     return StreamingResponse(
-        camera_stream_service.frames(),
+        frame_stream_service.frames(),
         media_type="multipart/x-mixed-replace; boundary=frame",
         headers={
             "Cache-Control": "no-store",
@@ -99,7 +95,6 @@ def camera_snapshot() -> Response:
         )
 
     try:
-        camera_stream_service.stop()
         snapshot = camera_snapshot_service.capture()
     except RuntimeError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
@@ -114,7 +109,7 @@ def camera_snapshot() -> Response:
 @router.get("/program/stream")
 def program_stream() -> StreamingResponse:
     return StreamingResponse(
-        program_stream_service.frames(),
+        frame_stream_service.frames(),
         media_type="multipart/x-mixed-replace; boundary=frame",
     )
 

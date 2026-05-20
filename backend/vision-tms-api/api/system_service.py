@@ -111,7 +111,7 @@ class SystemService:
         if errors:
             raise RuntimeError(" ".join(errors))
 
-        self._clear_program_frame(config)
+        self._clear_dashboard_frame(config)
         self._program_state_repository.clear()
         self._process_manager.start_program(config)
         return self.status()
@@ -121,7 +121,9 @@ class SystemService:
         return self.status()
 
     def start_camera_test(self) -> RuntimeStatus:
-        self._process_manager.start_camera_test(self._config_repository.load())
+        config = self._config_repository.load()
+        self._clear_dashboard_frame(config)
+        self._process_manager.start_camera_test(config)
         return self.status()
 
     def stop_camera_test(self) -> RuntimeStatus:
@@ -167,7 +169,7 @@ class SystemService:
         zones = tracking.get("zones", [])
         return zones[0] if zones else None
 
-    def _clear_program_frame(self, config: dict[str, Any]) -> None:
+    def _clear_dashboard_frame(self, config: dict[str, Any]) -> None:
         raw_path = Path(config.get("dashboard", {}).get("frame_path", "dashboard/data/program_frame.jpg"))
         frame_path = raw_path if raw_path.is_absolute() else BASE_DIR / raw_path
         try:

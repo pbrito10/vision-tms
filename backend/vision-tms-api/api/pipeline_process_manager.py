@@ -56,15 +56,36 @@ class PipelineProcessManager:
             )
 
     def start_camera_test(self, config: dict[str, Any]) -> None:
+        from process_entrypoints import run_camera, run_detector, run_preview_pipeline
+
         with self._lock:
             self._ensure_idle()
-            self._mode = RuntimeMode.CAMERA_TEST
-            self._state = RuntimeState.RUNNING
-            self._active_program_id = None
-            self._message = "Camera stream is running"
-            self._last_error = None
-            self._stop_event = None
-            self._processes = []
+            frame_queue = self._ctx.Queue(maxsize=2)
+            detection_queue = self._ctx.Queue(maxsize=5)
+            stop_event = self._ctx.Event()
+            self._start(
+                mode=RuntimeMode.CAMERA_TEST,
+                active_program_id=None,
+                message="Camera stream is running",
+                stop_event=stop_event,
+                processes=[
+                    self._ctx.Process(
+                        target=run_camera,
+                        name="camera",
+                        args=(frame_queue, stop_event, config),
+                    ),
+                    self._ctx.Process(
+                        target=run_detector,
+                        name="detector",
+                        args=(frame_queue, detection_queue, stop_event, config),
+                    ),
+                    self._ctx.Process(
+                        target=run_preview_pipeline,
+                        name="preview",
+                        args=(detection_queue, stop_event, config, str(ROI_PATH)),
+                    ),
+                ],
+            )
 
     def stop(self) -> None:
         with self._lock:

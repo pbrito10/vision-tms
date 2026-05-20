@@ -7,28 +7,28 @@ from pathlib import Path
 from api.services import BASE_DIR, ConfigRepository
 
 
-class ProgramFrameStreamService:
-    """Streams the latest frame published by the running program process."""
+class PublishedFrameStreamService:
+    """Streams the latest frame published by the active vision pipeline."""
 
     def __init__(self, config_repository: ConfigRepository) -> None:
         self._config_repository = config_repository
 
     def frames(self) -> Iterator[bytes]:
+        frame_path = self._frame_path()
         last_mtime = None
-        last_jpeg = self._status_jpeg("Waiting for program frame")
+        last_jpeg = self._status_jpeg("Waiting for camera frame")
 
         while True:
-            frame_path = self._frame_path()
             try:
                 stat = frame_path.stat()
                 if stat.st_mtime_ns != last_mtime:
                     last_jpeg = frame_path.read_bytes()
                     last_mtime = stat.st_mtime_ns
             except OSError:
-                last_jpeg = self._status_jpeg("Waiting for program frame")
+                last_jpeg = self._status_jpeg("Waiting for camera frame")
 
             yield self._multipart_frame(last_jpeg)
-            time.sleep(0.12)
+            time.sleep(1 / 30)
 
     def _frame_path(self) -> Path:
         config = self._config_repository.load()

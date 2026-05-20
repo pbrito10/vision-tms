@@ -169,18 +169,20 @@ class _MonitorSession:
         from src.roi.json_roi_repository import JsonRoiRepository
         from src.tracking.activation_strategy import StillnessDwellStrategy
         from src.tracking.cycle_tracker import CycleTracker
+        from src.tracking.task_event_merger import ConsecutiveTaskMerger
         from src.tracking.task_labeler import TaskLabeler
         from src.tracking.zone_classifier import ZoneClassifier
         from src.video.frame_annotator import ZoneColorScheme
+        from src.video.live_frame import JpegFramePublisher
 
         self._config        = config
         self._session_start = datetime.now()
         self._frame_idx     = 0
         self._last_metrics_write = datetime.min
         self._refresh_interval   = timedelta(seconds=config["dashboard"]["refresh_seconds"])
-        self._frame_output_path    = Path(config["dashboard"].get("frame_path", "dashboard/data/program_frame.jpg"))
+        self._frame_publisher = JpegFramePublisher.from_config(config)
+        self._frame_output_path    = self._frame_publisher.path
         self._state_output_path    = Path(config["dashboard"].get("state_path", "dashboard/data/program_state.json"))
-        self._frame_output_path.parent.mkdir(parents=True, exist_ok=True)
         self._state_output_path.parent.mkdir(parents=True, exist_ok=True)
 
         rois                     = JsonRoiRepository(path=Path(roi_path)).load()
@@ -194,6 +196,7 @@ class _MonitorSession:
         self._session_output     = create_session_output_layout(config, self._session_start)
         self._zone_classifier    = ZoneClassifier(rois)
         self._transition_tracker = _ZoneTransitionTracker(self._session_start)
+        self._task_merger       = ConsecutiveTaskMerger()
 
         dwell_time   = timedelta(seconds=config["tracking"]["dwell_time_seconds"])
         task_timeout = timedelta(seconds=config["tracking"]["task_timeout_seconds"])
@@ -293,7 +296,7 @@ class _MonitorSession:
         task_event = self._state_machine.update(classified_hands, now)
         self._log_task_diagnostics(debug_logger)
         if task_event is not None:
-            self._handle_task_event(task_event, debug_logger)
+            self._handle_task_event_candidate(task_event, debug_logger)
 
         self._maybe_write_live_metrics(now)
         self._publish_program_state(classified_hands, now)
@@ -302,13 +305,14 @@ class _MonitorSession:
         self._publish_frame(annotated_frame)
 
     def _annotate_frame(self, frame_rgb, maos):
-        import cv2
-        from src.video import frame_annotator
+        from src.video.live_frame import annotate_detection_frame
 
-        frame_bgr = cv2.cvtColor(frame_rgb, cv2.COLOR_RGB2BGR)
-        frame_annotator.draw_detections(frame_bgr, maos)
-        frame_annotator.draw_rois(frame_bgr, self._rois, color_scheme=self._color_scheme)
-        return frame_bgr
+        return annotate_detection_frame(
+            frame_rgb,
+            maos,
+            rois=self._rois,
+            color_scheme=self._color_scheme,
+        )
 
     def _record_frame(self, frame_bgr) -> None:
         self._safe_output("write annotated video frame", self._video_recorder.write, frame_bgr)
@@ -371,21 +375,24 @@ class _MonitorSession:
         return None
 
     def _publish_frame(self, frame_bgr) -> None:
-        import cv2
-
         try:
-            ok, encoded = cv2.imencode(".jpg", frame_bgr, [cv2.IMWRITE_JPEG_QUALITY, 82])
-            if not ok:
+            if not self._frame_publisher.publish(frame_bgr):
                 LOGGER.warning("Failed to encode program frame as JPEG")
-                return
-
-            temp_path = self._frame_output_path.with_suffix(".tmp")
-            temp_path.write_bytes(encoded.tobytes())
-            temp_path.replace(self._frame_output_path)
         except Exception:
             LOGGER.exception("Failed to publish program frame to %s", self._frame_output_path)
 
+    def _handle_task_event_candidate(self, task_event, debug_logger) -> None:
+        completed_event = self._task_merger.push(task_event)
+        if completed_event is not None:
+            self._handle_task_event(completed_event, debug_logger)
+
+    def _flush_pending_task_event(self, debug_logger) -> None:
+        completed_event = self._task_merger.flush()
+        if completed_event is not None:
+            self._handle_task_event(completed_event, debug_logger)
+
     def _handle_task_event(self, task_event, debug_logger) -> None:
+        task_event = self._event_in_current_cycle(task_event)
         cycle_result = self._cycle_tracker.record(task_event)
         if self._cycle_tracker.last_event_started_new_cycle():
             self._record_cycle_result(cycle_result, debug_logger)
@@ -449,6 +456,7 @@ class _MonitorSession:
         from datetime import datetime
 
         self._safe_output("flush detection gaps", self._gap_tracker.flush, datetime.now(), debug_logger)
+        self._safe_output("flush pending task event", self._flush_pending_task_event, debug_logger)
         snapshot = self._metrics.snapshot()
         self._safe_output("write final metrics to InfluxDB", self._influx_writer.write, snapshot)
         self._safe_output("write final Excel output", self._excel_exporter.write, snapshot)
