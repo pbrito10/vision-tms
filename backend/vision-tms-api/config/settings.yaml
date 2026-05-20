@@ -7,7 +7,7 @@ camera:
   index: 0
   width: 640
   height: 480
-  flip: True
+  flip: true
   calibration_path: calibration/data/lens_calibration.npz
   perspective_path: ''
   open_timeout_seconds: 5
@@ -22,43 +22,43 @@ tracking:
   task_timeout_seconds: 30.0
   stillness_threshold_px: 8.0
   zones:
-  - Porca
-  - Chassi Inferior
-  - Rodas
-  - Chassi Superior
-  - Parafuso
-  - Montagem
-  - Saida
+  - chassi inferior
+  - chassi superior
+  - rodas
+  - porca
+  - parafuso
+  - montagem
+  - saida
   two_hands_zones:
-  - Montagem
+  - montagem
   two_hands_missing_tolerance_seconds: 0.3
-  assembly_zone: Montagem
+  assembly_zone: montagem
   assembly_task_labels:
-    Chassi Inferior: Montagem Chassi Inferior
-    Porca: Montagem Porca
-    Rodas: Montagem Rodas
-    Chassi Superior: Montagem Chassi Superior
-    Parafuso: Montagem Parafuso
+    chassi inferior: montagem chassi inferior
+    chassi superior: montagem chassi superior
+    rodas: montagem rodas
+    porca: montagem porca
+    parafuso: montagem parafuso
   cycle_zone_order:
-  - Porca
-  - Montagem
-  - Chassi Inferior
-  - Montagem
-  - Rodas
-  - Montagem
-  - Chassi Superior
-  - Montagem
-  - Parafuso
-  - Montagem
-  - Saida
+  - porca
+  - montagem
+  - chassi inferior
+  - montagem
+  - rodas
+  - montagem
+  - chassi superior
+  - montagem
+  - parafuso
+  - montagem
+  - saida
   cycle_repeat_rules:
   - sequence:
-    - Rodas
-    - Montagem
+    - rodas
+    - montagem
     min_repeats: 1
     max_repeats: 4
-  start_zone: Porca
-  exit_zone: Saida
+  start_zone: porca
+  exit_zone: saida
   detection_gap_threshold_s: 1.0
 dashboard:
   frame_path: dashboard/data/program_frame.jpg

@@ -42,6 +42,17 @@ def _cycle_diagnosis(cycle_result: CycleResult):
     return diagnose_order(cycle_result.actual_sequence, cycle_result.expected_sequence)
 
 
+def _format_sequence(sequence) -> str:
+    cleaned_steps = []
+    for step in sequence:
+        step_name = str(step).strip()
+        while step_name.startswith("->"):
+            step_name = step_name[2:].strip()
+        if step_name:
+            cleaned_steps.append(step_name)
+    return ", ".join(cleaned_steps)
+
+
 class ExcelExporter(OutputInterface):
     """Exporta os dados da sessao para um ficheiro .xlsx no fim."""
 
@@ -125,7 +136,7 @@ class ExcelExporter(OutputInterface):
                 "Fim": cycle_result.end_time.strftime("%H:%M:%S"),
                 "Duracao (s)": round(cycle_result.duration.total_seconds(), 2),
                 "Resultado do sistema": diagnosis.result,
-                "Sequencia registada": " -> ".join(cycle_result.actual_sequence),
+                "Sequencia registada": _format_sequence(cycle_result.actual_sequence),
                 "Problema detetado": diagnosis.problem,
                 "Classificacao manual": "",
                 "Observacoes": "",

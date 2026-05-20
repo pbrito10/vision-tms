@@ -28,22 +28,25 @@
       },
       "fieldConfig": {
         "defaults": {
-          "decimals": 1,
-          "unit": "s"
+          "unit": "short",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "blue"
+          }
         },
         "overrides": []
       },
       "gridPos": {
         "h": 5,
-        "w": 4,
+        "w": 5,
         "x": 0,
         "y": 0
       },
       "id": 1,
       "options": {
-        "colorMode": "background",
+        "colorMode": "none",
         "graphMode": "none",
-        "justifyMode": "auto",
+        "justifyMode": "center",
         "orientation": "auto",
         "reduceOptions": {
           "calcs": [
@@ -52,7 +55,7 @@
           "fields": "",
           "values": false
         },
-        "textMode": "auto",
+        "textMode": "value",
         "wideLayout": true
       },
       "targets": [
@@ -61,7 +64,7 @@
             "type": "influxdb",
             "uid": "vision-tms-influxdb"
           },
-          "query": "latestSession = from(bucket: \"vision_tms\")\n  |> range(start: -30d)\n  |> filter(fn: (r) => r._measurement == \"vision_tms_session\" and r._field == \"session_duration_s\")\n  |> group()\n  |> sort(columns: [\"_time\"], desc: true)\n  |> limit(n: 1)\n  |> keep(columns: [\"session\"])\n  |> group(columns: [\"session\"])\n\nvalues = from(bucket: \"vision_tms\")\n  |> range(start: -30d)\n  |> filter(fn: (r) => r._measurement == \"vision_tms_session\" and r._field == \"session_duration_s\")\n  |> keep(columns: [\"session\", \"_time\", \"_value\"])\n  |> group(columns: [\"session\"])\n\njoin(tables: {values: values, latest: latestSession}, on: [\"session\"])\n  |> group()\n  |> sort(columns: [\"_time\"], desc: true)\n  |> limit(n: 1)\n  |> keep(columns: [\"_time\", \"_value\"])",
+          "query": "latestSession = from(bucket: \"vision_tms\")\n  |> range(start: -30d)\n  |> filter(fn: (r) => r._measurement == \"vision_tms_session\" and r._field == \"session_duration_s\")\n  |> group()\n  |> sort(columns: [\"_time\"], desc: true)\n  |> limit(n: 1)\n  |> keep(columns: [\"session\"])\n  |> group(columns: [\"session\"])\n\nvalues = from(bucket: \"vision_tms\")\n  |> range(start: -30d)\n  |> filter(fn: (r) => r._measurement == \"vision_tms_session\" and r._field == \"session_duration_s\")\n  |> keep(columns: [\"session\", \"_time\", \"_value\"])\n  |> group(columns: [\"session\"])\n\njoin(tables: {values: values, latest: latestSession}, on: [\"session\"])\n  |> group()\n  |> sort(columns: [\"_time\"], desc: true)\n  |> limit(n: 1)\n  |> map(fn: (r) => {\n    totalSeconds = int(v: r._value)\n    minutes = int(v: r._value / 60.0)\n    seconds = totalSeconds - minutes * 60\n    return {_time: r._time, _value: string(v: minutes) + \"m \" + string(v: seconds) + \"s\"}\n  })",
           "refId": "A"
         }
       ],
@@ -76,21 +79,25 @@
       "fieldConfig": {
         "defaults": {
           "decimals": 0,
-          "unit": "short"
+          "unit": "short",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "blue"
+          }
         },
         "overrides": []
       },
       "gridPos": {
         "h": 5,
-        "w": 4,
-        "x": 4,
+        "w": 5,
+        "x": 5,
         "y": 0
       },
       "id": 2,
       "options": {
-        "colorMode": "background",
+        "colorMode": "none",
         "graphMode": "none",
-        "justifyMode": "auto",
+        "justifyMode": "center",
         "orientation": "auto",
         "reduceOptions": {
           "calcs": [
@@ -99,7 +106,7 @@
           "fields": "",
           "values": false
         },
-        "textMode": "auto",
+        "textMode": "value",
         "wideLayout": true
       },
       "targets": [
@@ -123,7 +130,8 @@
       "fieldConfig": {
         "defaults": {
           "color": {
-            "mode": "thresholds"
+            "mode": "fixed",
+            "fixedColor": "blue"
           },
           "decimals": 0,
           "thresholds": {
@@ -141,15 +149,15 @@
       },
       "gridPos": {
         "h": 5,
-        "w": 4,
-        "x": 8,
+        "w": 5,
+        "x": 10,
         "y": 0
       },
       "id": 3,
       "options": {
-        "colorMode": "background",
+        "colorMode": "none",
         "graphMode": "none",
-        "justifyMode": "auto",
+        "justifyMode": "center",
         "orientation": "auto",
         "reduceOptions": {
           "calcs": [
@@ -158,7 +166,7 @@
           "fields": "",
           "values": false
         },
-        "textMode": "auto",
+        "textMode": "value",
         "wideLayout": true
       },
       "targets": [
@@ -182,7 +190,8 @@
       "fieldConfig": {
         "defaults": {
           "color": {
-            "mode": "thresholds"
+            "mode": "fixed",
+            "fixedColor": "blue"
           },
           "decimals": 0,
           "thresholds": {
@@ -204,15 +213,15 @@
       },
       "gridPos": {
         "h": 5,
-        "w": 4,
-        "x": 12,
+        "w": 5,
+        "x": 15,
         "y": 0
       },
       "id": 4,
       "options": {
-        "colorMode": "background",
+        "colorMode": "none",
         "graphMode": "none",
-        "justifyMode": "auto",
+        "justifyMode": "center",
         "orientation": "auto",
         "reduceOptions": {
           "calcs": [
@@ -221,7 +230,7 @@
           "fields": "",
           "values": false
         },
-        "textMode": "auto",
+        "textMode": "value",
         "wideLayout": true
       },
       "targets": [
@@ -245,21 +254,25 @@
       "fieldConfig": {
         "defaults": {
           "decimals": 1,
-          "unit": "s"
+          "unit": "s",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "blue"
+          }
         },
         "overrides": []
       },
       "gridPos": {
         "h": 5,
         "w": 4,
-        "x": 16,
+        "x": 20,
         "y": 0
       },
       "id": 7,
       "options": {
-        "colorMode": "background",
+        "colorMode": "none",
         "graphMode": "none",
-        "justifyMode": "auto",
+        "justifyMode": "center",
         "orientation": "auto",
         "reduceOptions": {
           "calcs": [
@@ -268,7 +281,7 @@
           "fields": "",
           "values": false
         },
-        "textMode": "auto",
+        "textMode": "value",
         "wideLayout": true
       },
       "targets": [
@@ -290,59 +303,19 @@
         "uid": "vision-tms-influxdb"
       },
       "fieldConfig": {
-        "defaults": {},
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 5,
-        "w": 4,
-        "x": 20,
-        "y": 0
-      },
-      "id": 8,
-      "options": {
-        "colorMode": "background",
-        "graphMode": "none",
-        "justifyMode": "center",
-        "orientation": "auto",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        },
-        "textMode": "value",
-        "wideLayout": true
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "influxdb",
-            "uid": "vision-tms-influxdb"
-          },
-          "query": "latestSession = from(bucket: \"vision_tms\")\n  |> range(start: -30d)\n  |> filter(fn: (r) => r._measurement == \"vision_tms_session\" and r._field == \"session_duration_s\")\n  |> group()\n  |> sort(columns: [\"_time\"], desc: true)\n  |> limit(n: 1)\n  |> keep(columns: [\"session\"])\n  |> group(columns: [\"session\"])\n\nzones = from(bucket: \"vision_tms\")\n  |> range(start: -30d)\n  |> filter(fn: (r) => r._measurement == \"vision_tms_zone\" and r._field == \"avg_s\")\n  |> keep(columns: [\"session\", \"zone\", \"_time\", \"_value\"])\n  |> group(columns: [\"session\", \"zone\"])\n\njoin(tables: {zones: zones, latest: latestSession}, on: [\"session\"])\n  |> group(columns: [\"zone\"])\n  |> last()\n  |> group()\n  |> sort(columns: [\"_value\"], desc: true)\n  |> limit(n: 1)\n  |> map(fn: (r) => ({_time: r._time, _value: r.zone}))",
-          "refId": "A"
-        }
-      ],
-      "title": "Zona de gargalo",
-      "type": "stat"
-    },
-    {
-      "datasource": {
-        "type": "influxdb",
-        "uid": "vision-tms-influxdb"
-      },
-      "fieldConfig": {
         "defaults": {
           "decimals": 1,
-          "unit": "s"
+          "unit": "s",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "blue"
+          }
         },
         "overrides": []
       },
       "gridPos": {
         "h": 9,
-        "w": 16,
+        "w": 15,
         "x": 0,
         "y": 5
       },
@@ -370,7 +343,7 @@
           "refId": "A"
         }
       ],
-      "title": "Tendência do tempo dos últimos 5 ciclos",
+      "title": "Últimos 5 ciclos",
       "type": "timeseries"
     },
     {
@@ -383,19 +356,23 @@
           "decimals": 1,
           "max": 100,
           "min": 0,
-          "unit": "percent"
+          "unit": "percent",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "blue"
+          }
         },
         "overrides": []
       },
       "gridPos": {
         "h": 9,
-        "w": 8,
-        "x": 16,
+        "w": 9,
+        "x": 15,
         "y": 5
       },
       "id": 6,
       "options": {
-        "displayMode": "gradient",
+        "displayMode": "basic",
         "minVizHeight": 10,
         "minVizWidth": 0,
         "namePlacement": "auto",
@@ -407,7 +384,7 @@
           "fields": "",
           "values": false
         },
-        "showUnfilled": true,
+        "showUnfilled": false,
         "valueMode": "color"
       },
       "targets": [
@@ -420,12 +397,12 @@
           "refId": "A"
         }
       ],
-      "title": "Percentagem por tipo de tempo",
+      "title": "Distribuição do tempo",
       "type": "bargauge"
     }
   ],
   "preload": false,
-  "refresh": "5s",
+  "refresh": "1s",
   "schemaVersion": 41,
   "tags": [
     "vision-tms"
@@ -441,6 +418,6 @@
   "timezone": "browser",
   "title": "Vision TMS - Operador",
   "uid": "vision-tms-operator",
-  "version": 2,
+  "version": 4,
   "weekStart": ""
 }
