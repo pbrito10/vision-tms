@@ -16,6 +16,7 @@ class PipelineProcessManager:
         self._lock = threading.Lock()
         self._ctx = get_context("spawn")
         self._stop_event = None
+        self._queues = []
         self._processes = []
         self._mode = RuntimeMode.IDLE
         self._state = RuntimeState.IDLE
@@ -31,11 +32,13 @@ class PipelineProcessManager:
             frame_queue = self._ctx.Queue(maxsize=2)
             detection_queue = self._ctx.Queue(maxsize=5)
             stop_event = self._ctx.Event()
+            queues = [frame_queue, detection_queue]
             self._start(
                 mode=RuntimeMode.PROGRAM,
                 active_program_id=PROGRAM_ID,
                 message="Program is running",
                 stop_event=stop_event,
+                queues=queues,
                 processes=[
                     self._ctx.Process(
                         target=run_camera,
@@ -63,11 +66,13 @@ class PipelineProcessManager:
             frame_queue = self._ctx.Queue(maxsize=2)
             detection_queue = self._ctx.Queue(maxsize=5)
             stop_event = self._ctx.Event()
+            queues = [frame_queue, detection_queue]
             self._start(
                 mode=RuntimeMode.CAMERA_TEST,
                 active_program_id=None,
                 message="Camera stream is running",
                 stop_event=stop_event,
+                queues=queues,
                 processes=[
                     self._ctx.Process(
                         target=run_camera,
@@ -115,6 +120,7 @@ class PipelineProcessManager:
         active_program_id: str | None,
         message: str,
         stop_event,
+        queues: list,
         processes: list,
     ) -> None:
         self._mode = mode
@@ -123,6 +129,7 @@ class PipelineProcessManager:
         self._message = message
         self._last_error = None
         self._stop_event = stop_event
+        self._queues = queues
         self._processes = processes
 
         try:
@@ -162,6 +169,7 @@ class PipelineProcessManager:
 
     def _clear_runtime(self, message: str) -> None:
         self._processes = []
+        self._queues = []
         self._stop_event = None
         self._mode = RuntimeMode.IDLE
         self._state = RuntimeState.IDLE
