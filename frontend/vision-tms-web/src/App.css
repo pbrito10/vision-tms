@@ -505,27 +505,6 @@ button:disabled:hover {
   background: #ffffff;
 }
 
-.current-task {
-  display: grid;
-  gap: 6px;
-  margin-top: 14px;
-  padding: 14px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: #f7faf8;
-}
-
-.current-task span {
-  color: var(--muted);
-  font-size: 13px;
-  font-weight: 700;
-}
-
-.current-task strong {
-  color: var(--ink);
-  font-size: 18px;
-}
-
 .step-list {
   display: grid;
   gap: 12px;

@@ -22,7 +22,6 @@ function App() {
         benchConfig={system.benchConfig}
         onStart={system.startProgram}
         onStop={system.stopProgram}
-        programState={system.programState}
         programs={system.programs}
         selectedBenchId={effectiveBenchId}
         setSelectedBenchId={setSelectedBenchId}

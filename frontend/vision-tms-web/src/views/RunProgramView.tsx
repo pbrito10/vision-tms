@@ -1,6 +1,6 @@
 import { apiClient } from '../api/client'
 import { InspectionPreview } from '../components/ui'
-import type { BenchConfigResponse, Program, ProgramStateResponse, RuntimeStatus } from '../types'
+import type { BenchConfigResponse, Program, RuntimeStatus } from '../types'
 import { stateLabel } from '../utils/runtime'
 
 interface RunProgramViewProps {
@@ -8,7 +8,6 @@ interface RunProgramViewProps {
   isCommandPending: boolean
   onStart: (benchId: string) => void
   onStop: () => void
-  programState: ProgramStateResponse
   programs: Program[]
   selectedBenchId: string
   setSelectedBenchId: (benchId: string) => void
@@ -20,7 +19,6 @@ export function RunProgramView({
   isCommandPending,
   onStart,
   onStop,
-  programState,
   programs,
   selectedBenchId,
   setSelectedBenchId,
@@ -30,9 +28,6 @@ export function RunProgramView({
   const activeProgram = programs[0]
   const selectedBench = benches.find((bench) => bench.id === selectedBenchId) ?? benches[0]
   const isRunning = status.mode === 'program' && status.run_state === 'running'
-  const currentTask = isRunning
-    ? programState.current_zone ?? 'Waiting for zone'
-    : 'Ready'
 
   return (
     <section className="view-grid run-grid">
@@ -59,11 +54,6 @@ export function RunProgramView({
             ))}
           </select>
         </label>
-
-        <div className="current-task">
-          <span>Current task</span>
-          <strong>{currentTask}</strong>
-        </div>
 
         <div className="control-buttons">
           <button
