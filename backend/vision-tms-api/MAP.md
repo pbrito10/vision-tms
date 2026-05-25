@@ -12,6 +12,8 @@ O fluxo antigo de menu Python/Streamlit foi removido.
 - `api/config_repository.py`: persistência de `settings.yaml`.
 - `api/bench_repository.py`: persistência e ativação de bancadas.
 - `api/roi_service.py`: persistência e validação de ROIs.
+- `api/camera_utils.py`: utilitários de câmara partilhados (leitura de output_size da calibração de perspetiva).
+- `api/config_validation.py`: validação de configuração de tracking antes de arrancar pipeline.
 - `api/pipeline_process_manager.py`: gestão dos subprocessos.
 - `process_entrypoints.py`: entrypoints limpos para os subprocessos do pipeline.
 

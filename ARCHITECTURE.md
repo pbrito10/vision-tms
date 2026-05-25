@@ -25,6 +25,8 @@ Os casos de uso foram separados por responsabilidade:
 - `api/config_repository.py`: leitura/escrita de `config/settings.yaml`.
 - `api/roi_service.py`: leitura, escrita e validacao de ROIs.
 - `api/bench_repository.py`: persistencia e ativacao de bancadas.
+- `api/camera_utils.py`: utilitarios de camara (ex: leitura do output_size da calibracao perspetiva).
+- `api/config_validation.py`: validacao de configuracao de tracking antes de arrancar o pipeline.
 - `api/program_state_repository.py`: leitura do estado leve publicado pelo monitor.
 - `api/pipeline_process_manager.py`: ciclo de vida dos subprocessos.
 - `api/system_service.py`: fachada de casos de uso consumida pelas rotas.
@@ -67,3 +69,16 @@ O estado do sistema e composto por hooks menores:
 - `useSystemData`: fachada que preserva a interface usada pela aplicacao.
 
 As chamadas HTTP estao centralizadas em `src/api/client.ts`.
+
+As vistas principais sao:
+
+- `views/RunProgramView.tsx`: correr programa, ver stream anotado e estado em tempo real.
+- `views/CameraTestView.tsx`: testar camara e validar posicionamento.
+- `views/BenchConfigView.tsx`: configurar bancadas (zonas, sequencia de ciclo, regras de repeticao).
+
+A configuracao de bancadas esta decomposta em paineis especializados:
+
+- `components/bench/BenchPreviewPanel.tsx`: snapshot da camara, drag para criar/mover zonas sobre a imagem real.
+- `components/bench/BenchZonesPanel.tsx`: lista de zonas, nome e flag duas maos.
+- `components/bench/BenchCyclePanel.tsx`: sequencia do ciclo e regras de repeticao configuráveis.
+- `components/bench/BenchLibraryPanel.tsx`: gerir bancadas salvas e escolher a ativa.

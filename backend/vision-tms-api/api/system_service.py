@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from api.bench_repository import BenchRepository
+from api.camera_utils import read_perspective_output_size
 from api.config_validation import validate_runtime_config
 from api.config_repository import ConfigRepository
 from api.model_utils import model_dump
@@ -192,20 +193,7 @@ class SystemService:
         perspective_path = settings.get("perspective_path")
         if not perspective_path:
             return settings
-
-        try:
-            import numpy as np
-
-            path = Path(perspective_path)
-            if not path.is_absolute():
-                path = BASE_DIR / path
-            if not path.exists():
-                return settings
-
-            output_width, output_height = np.load(path)["output_size"].tolist()
-            settings["width"] = int(output_width)
-            settings["height"] = int(output_height)
-        except Exception:
-            logger.exception("Failed to read perspective output size from %s", perspective_path)
-
+        size = read_perspective_output_size(perspective_path, BASE_DIR)
+        if size is not None:
+            settings["width"], settings["height"] = size
         return settings
