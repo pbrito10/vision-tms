@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from api.bench_repository import BenchRepository
+from api.config_validation import validate_runtime_config
 from api.config_repository import ConfigRepository
 from api.model_utils import model_dump
 from api.paths import BASE_DIR, PROGRAM_ID
@@ -107,7 +108,7 @@ class SystemService:
 
         self._bench_repository.activate(bench_id)
         config = self._config_repository.load()
-        errors = self._roi_service.validate(config)
+        errors = validate_runtime_config(config) + self._roi_service.validate(config)
         if errors:
             raise RuntimeError(" ".join(errors))
 
@@ -133,8 +134,12 @@ class SystemService:
     def _checks(self, state: RuntimeState) -> list[SystemCheck]:
         config = self._config_repository.load()
         bench_config = self._bench_repository.load()
+        config_errors = validate_runtime_config(config)
         roi_errors = self._roi_service.validate(config)
         bench_ready = bool(bench_config.benches)
+        config_value = "Ready" if not config_errors else config_errors[0]
+        if len(config_errors) > 1:
+            config_value = f"{len(config_errors)} issue(s)"
         roi_value = "Ready" if not roi_errors else roi_errors[0]
         if len(roi_errors) > 1:
             roi_value = f"{len(roi_errors)} issue(s)"
@@ -154,6 +159,11 @@ class SystemService:
                 name="Benches",
                 value="Ready" if bench_ready else "No local bench configuration",
                 status=CheckStatus.OK if bench_ready else CheckStatus.WARNING,
+            ),
+            SystemCheck(
+                name="Config",
+                value=config_value,
+                status=CheckStatus.OK if not config_errors else CheckStatus.ERROR,
             ),
             SystemCheck(
                 name="ROIs",

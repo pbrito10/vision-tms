@@ -395,6 +395,14 @@ class _MonitorSession:
         completed_event = self._task_merger.push(task_event)
         if completed_event is not None:
             self._handle_task_event(completed_event, debug_logger)
+        if self._should_flush_task_event_candidate(task_event):
+            self._flush_pending_task_event(debug_logger)
+
+    def _should_flush_task_event_candidate(self, task_event) -> bool:
+        return (
+            task_event.zone_name == self._config["tracking"]["exit_zone"]
+            and not task_event.was_forced
+        )
 
     def _flush_pending_task_event(self, debug_logger) -> None:
         completed_event = self._task_merger.flush()
@@ -445,6 +453,7 @@ class _MonitorSession:
         self._safe_output("append cycle result to Excel output", self._excel_exporter.add_cycle_result, cycle_result)
         self._safe_output("write cycle result to InfluxDB", self._influx_writer.write_cycle_result, cycle_result)
         debug_logger.log_cycle_complete(cycle_result)
+        self._safe_output("write live metrics to InfluxDB", self._influx_writer.write, self._metrics.snapshot())
 
     def _log_task(self, task_event, debug_logger) -> None:
         if task_event.was_forced:
