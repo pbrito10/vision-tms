@@ -67,6 +67,7 @@ class CameraSettings(BaseModel):
 class DetectionSettings(BaseModel):
     max_num_hands: int = 2
     min_detection_confidence: float = 0.8
+    min_hand_presence_confidence: float = 0.5
     min_tracking_confidence: float = 0.8
 
 

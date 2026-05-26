@@ -21,6 +21,7 @@ def run(frame_queue, detection_queue, stop_event, config):
         model_path=config["detection"]["model_path"],
         max_num_hands=config["detection"]["max_num_hands"],
         min_detection_confidence=config["detection"]["min_detection_confidence"],
+        min_hand_presence_confidence=config["detection"]["min_hand_presence_confidence"],
         min_tracking_confidence=config["detection"]["min_tracking_confidence"],
     )
 

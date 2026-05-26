@@ -41,6 +41,7 @@ class MediapipeDetector(DetectorInterface):
         model_path: str,
         max_num_hands: int = 2,
         min_detection_confidence: float = 0.8,
+        min_hand_presence_confidence: float = 0.5,
         min_tracking_confidence: float = 0.8,
         landmarker=None,
         mp_module=None,
@@ -50,6 +51,7 @@ class MediapipeDetector(DetectorInterface):
                 model_path,
                 max_num_hands,
                 min_detection_confidence,
+                min_hand_presence_confidence,
                 min_tracking_confidence,
             )
             return
@@ -64,6 +66,7 @@ class MediapipeDetector(DetectorInterface):
         model_path: str,
         max_num_hands: int,
         min_detection_confidence: float,
+        min_hand_presence_confidence: float,
         min_tracking_confidence: float,
     ):
         import mediapipe as mp
@@ -77,9 +80,7 @@ class MediapipeDetector(DetectorInterface):
             running_mode=mp_vision.RunningMode.VIDEO,
             num_hands=max_num_hands,
             min_hand_detection_confidence=min_detection_confidence,
-            # presence_confidence: threshold para o modelo continuar a rastrear
-            # uma mão já detetada. Usamos o mesmo valor de detection para consistência.
-            min_hand_presence_confidence=min_detection_confidence,
+            min_hand_presence_confidence=min_hand_presence_confidence,
             min_tracking_confidence=min_tracking_confidence,
         )
         return mp, mp_vision.HandLandmarker.create_from_options(options)
