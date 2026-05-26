@@ -86,6 +86,14 @@ React (Vite)
 | `task_labeler.py` | Associa etiquetas às tarefas de montagem |
 | `task_diagnostic.py` | Diagnósticos de rejeição (timeout, saída antecipada, etc.) |
 
+### Parâmetros configuráveis de deteção
+
+- `min_detection_confidence`: confiança mínima para detetar uma mão nova (palm detector). Alto (0.8) para evitar falsos positivos.
+- `min_hand_presence_confidence`: confiança mínima para manter tracking de uma mão já detetada. Mais baixo (0.5) para não largar tracking em oclusões parciais ou mudanças de ângulo — evita reativar o palm detector desnecessariamente.
+- `min_tracking_confidence`: confiança mínima para continuar a rastrear landmarks frame a frame.
+
+**Decisão de design:** `min_hand_presence_confidence` está desacoplado de `min_detection_confidence`. Acoplá-los ao mesmo valor (0.8) fazia o tracker largar a mão em oclusões parciais e forçar uma nova detecção completa (lenta). Valores diferentes permitem deteção rigorosa na entrada e tracking tolerante durante o uso.
+
 ### Parâmetros configuráveis de tracking
 
 - `dwell_time_seconds`: tempo que a mão tem de estar parada na zona para validar.
@@ -188,6 +196,7 @@ Refresh mínimo configurado para 1s (`GF_DASHBOARDS_MIN_REFRESH_INTERVAL`).
 - **Repeat rules**: blocos da sequência com min/max repetições.
 - **Diagnósticos de rejeição**: razão por que uma tarefa não validou (timeout, saída antes de stillness, segunda mão em falta, etc.).
 - **Calibração de perspetiva** e de lente (scripts em `calibration/`).
+- **Tracking tolerante a oclusões:** `min_hand_presence_confidence` desacoplado de `min_detection_confidence` — mantém tracking ativo em oclusões parciais sem baixar o critério de deteção inicial.
 - **Deteção de gaps**: períodos sem mãos detetadas são registados com frames de evidência.
 - **Excel por sessão** com métricas detalhadas por ciclo e tarefa.
 - **Dashboard Grafana** provisionado automaticamente.
