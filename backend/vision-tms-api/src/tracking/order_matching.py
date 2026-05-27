@@ -8,7 +8,7 @@ RESULT_INCOMPLETE = "Sequencia incompleta"
 RESULT_OUT_OF_ORDER = "Fora de ordem"
 
 _OCCURRENCE_LIMITS = {
-    "Rodas": (1, 4),
+    "rodas": (1, 4),
 }
 
 
@@ -117,20 +117,24 @@ def _can_repeat_previous_limited_zone(
         entered_current
         and ptr > 0
         and zone == expected[ptr - 1]
-        and zone in _OCCURRENCE_LIMITS
+        and _occurrence_limit_for(zone) is not None
     )
 
 
 def _exceeds_occurrence_limit(zone: str, count: int) -> bool:
-    limit = _OCCURRENCE_LIMITS.get(zone)
+    limit = _occurrence_limit_for(zone)
     if limit is None:
         return False
     _, max_count = limit
     return count > max_count
 
 
+def _occurrence_limit_for(zone: str) -> tuple[int, int] | None:
+    return _OCCURRENCE_LIMITS.get(zone.casefold())
+
+
 def _too_many_occurrences_diagnosis(zone: str, count: int) -> OrderDiagnosis:
-    min_count, max_count = _OCCURRENCE_LIMITS[zone]
+    min_count, max_count = _occurrence_limit_for(zone) or (0, 0)
     return OrderDiagnosis(
         RESULT_OUT_OF_ORDER,
         f'A zona "{zone}" apareceu {count} vezes; o intervalo aceite e {min_count} a {max_count} presencas.',

@@ -92,6 +92,17 @@ class _BaseStateMachine(StateMachineInterface):
         self._task_state = TaskState.TASK_IN_PROGRESS
         self._task_start = dwell_start
 
+    def _complete_if_dwell_elapsed(
+        self,
+        dwell_start: datetime | None,
+        frame_time: datetime,
+    ) -> TaskEvent | None:
+        if dwell_start is None or frame_time - dwell_start < self._dwell_time:
+            return None
+
+        self._confirm_task_from_dwell(dwell_start)
+        return self._complete_task(frame_time, was_forced=False)
+
     def _record_rejection(self, timestamp: datetime, reason: str) -> None:
         """Guarda o motivo de uma tentativa abandonada antes de confirmar tarefa."""
         if self._tracked_zone is None or self._candidate_start is None:
@@ -159,14 +170,18 @@ class OneHandStateMachine(_BaseStateMachine):
         self,
         classified_hands: list[ClassifiedHand],
         frame_time: datetime,
-    ) -> None:
+    ) -> TaskEvent | None:
         hand = self._hand_in_tracked_zone(classified_hands)
 
         if hand is None:
+            completed = self._complete_if_dwell_elapsed(self._dwell_start, frame_time)
+            if completed is not None:
+                return completed
+
             # Saiu antes do dwell expirar — descarta sem emitir evento
             self._record_rejection(frame_time, self._dwell_rejection_reason())
             self._reset_to_idle()
-            return
+            return None
 
         had_previous = self._prev_detection is not None
         if not self._strategy.is_active(hand, self._prev_detection):
@@ -176,14 +191,18 @@ class OneHandStateMachine(_BaseStateMachine):
             self._prev_detection = hand
             if had_previous:
                 self._stillness_resets += 1
-            return
+            return None
 
         if self._dwell_start is None:
-            self._dwell_start = frame_time
+            if self._stillness_resets == 0 and self._candidate_start is not None:
+                self._dwell_start = self._candidate_start
+            else:
+                self._dwell_start = frame_time
         elif frame_time - self._dwell_start >= self._dwell_time:
             self._confirm_task_from_dwell(self._dwell_start)
 
         self._prev_detection = hand
+        return None
 
     def _dwell_rejection_reason(self) -> str:
         if self._stillness_resets > 0:
@@ -293,25 +312,31 @@ class TwoHandsStateMachine(_BaseStateMachine):
             return
 
         if len(hands) >= 2:
-            self._dwell_start = None
+            self._dwell_start = frame_time
             self._task_state  = TaskState.DWELLING_TWO_HANDS
 
     def _handle_dwelling_two_hands(
         self,
         classified_hands: list[ClassifiedHand],
         frame_time: datetime,
-    ) -> None:
+    ) -> TaskEvent | None:
         hands = self._hands_in_tracked_zone(classified_hands)
 
         if len(hands) < 2:
+            completed = self._complete_if_dwell_elapsed(self._dwell_start, frame_time)
+            if completed is not None:
+                return completed
+
             self._record_rejection(frame_time, REASON_LEFT_BEFORE_VALIDATION_TIME)
             self._reset_to_idle()
-            return
+            return None
 
         if self._dwell_start is None:
             self._dwell_start = frame_time
         elif frame_time - self._dwell_start >= self._dwell_time:
             self._confirm_task_from_dwell(self._dwell_start)
+
+        return None
 
     def _handle_in_progress(
         self,

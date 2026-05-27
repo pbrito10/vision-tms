@@ -11,7 +11,7 @@ from src.output.metrics_snapshot import MetricsSnapshot
 from src.output.output_interface import OutputInterface
 from src.output.session_output import output_stamp
 from src.tracking.cycle_result import CycleResult
-from src.tracking.order_matching import diagnose_order
+from src.tracking.order_matching import RESULT_IN_ORDER, OrderDiagnosis, diagnose_order
 from src.tracking.task_event import TaskEvent
 
 _BOTTLENECK_FILL = PatternFill(start_color="FFD966", end_color="FFD966", fill_type="solid")
@@ -39,6 +39,9 @@ class _EventExportRow:
 
 
 def _cycle_diagnosis(cycle_result: CycleResult):
+    if cycle_result.sequence_in_order:
+        return OrderDiagnosis(RESULT_IN_ORDER, "Sem problema detetado.")
+
     return diagnose_order(cycle_result.actual_sequence, cycle_result.expected_sequence)
 
 

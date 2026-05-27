@@ -26,6 +26,10 @@ _COLUMNS = [
     "actual_sequence",
     "is_anomaly",
     "reason",
+    "task_start_iso",
+    "task_start_relative_time_s",
+    "logged_at_iso",
+    "write_order",
 ]
 
 
@@ -40,6 +44,8 @@ class DebugLogger:
         self._file = self._path.open("w", newline="", encoding="utf-8")
         self._writer = csv.DictWriter(self._file, fieldnames=_COLUMNS)
         self._session_start = session_start
+        self._rows: list[dict] = []
+        self._write_order = 0
 
         self._writer.writeheader()
         self._file.flush()
@@ -106,9 +112,11 @@ class DebugLogger:
         self._write(row)
 
     def log_cycle_complete(self, cycle_result: CycleResult) -> None:
+        relative = cycle_result.end_time - self._session_start
         row = self._empty_row()
         row.update({
-            "timestamp_iso": datetime.now().strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3],
+            "timestamp_iso": self._format_timestamp(cycle_result.end_time),
+            "relative_time_s": round(relative.total_seconds(), 3),
             "event_type": "CYCLE_COMPLETE",
             "duration_s": round(cycle_result.duration.total_seconds(), 3),
             "cycle_number": cycle_result.cycle_number,
@@ -143,15 +151,18 @@ class DebugLogger:
         self._write(row)
 
     def _write_task_row(self, event_type: str, task_event: TaskEvent) -> None:
-        relative = task_event.end_time - self._session_start
+        start_relative = task_event.start_time - self._session_start
+        end_relative = task_event.end_time - self._session_start
         row = self._empty_row()
         row.update({
-            "timestamp_iso": task_event.end_time.strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3],
-            "relative_time_s": round(relative.total_seconds(), 3),
+            "timestamp_iso": self._format_timestamp(task_event.end_time),
+            "relative_time_s": round(end_relative.total_seconds(), 3),
             "event_type": event_type,
             "zone": task_event.zone_name,
             "duration_s": round(task_event.duration.total_seconds(), 3),
             "cycle_number": task_event.cycle_number,
+            "task_start_iso": self._format_timestamp(task_event.start_time),
+            "task_start_relative_time_s": round(start_relative.total_seconds(), 3),
         })
         self._write(row)
 
@@ -159,11 +170,30 @@ class DebugLogger:
         return {col: "" for col in _COLUMNS}
 
     def _write(self, row: dict) -> None:
+        self._write_order += 1
+        row["logged_at_iso"] = self._format_timestamp(datetime.now())
+        row["write_order"] = self._write_order
+        self._rows.append(dict(row))
         self._writer.writerow(row)
         self._file.flush()
 
     def close(self) -> None:
+        self._rewrite_chronological()
         self._file.close()
+
+    def _rewrite_chronological(self) -> None:
+        self._file.seek(0)
+        self._file.truncate()
+        writer = csv.DictWriter(self._file, fieldnames=_COLUMNS)
+        writer.writeheader()
+        writer.writerows(sorted(self._rows, key=self._sort_key))
+        self._file.flush()
+
+    def _sort_key(self, row: dict) -> tuple[str, int]:
+        return (str(row.get("timestamp_iso") or ""), int(row.get("write_order") or 0))
+
+    def _format_timestamp(self, timestamp: datetime) -> str:
+        return timestamp.strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3]
 
     def __enter__(self) -> DebugLogger:
         return self

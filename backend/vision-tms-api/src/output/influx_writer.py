@@ -133,7 +133,7 @@ class InfluxWriter:
                 "sequence_in_order": result.sequence_in_order,
                 "step_count": len(result.actual_sequence),
             },
-            timestamp=time.time_ns(),
+            timestamp=_timestamp_ns(result.end_time),
         ))
 
     def close(self) -> None:
